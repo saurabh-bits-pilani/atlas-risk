@@ -215,7 +215,7 @@ class handler(BaseHTTPRequestHandler):
             </div>
 
             <div class="actions">
-                <a href="https://share.streamlit.io" target="_blank" class="btn btn-primary">🚀 Launch Streamlit Web App</a>
+                <a href="https://atlas-risk.streamlit.app" target="_blank" class="btn btn-primary">🚀 Launch Streamlit Web App</a>
                 <a href="https://github.com/saurabh-bits-pilani/atlas-risk" target="_blank" class="btn btn-secondary">📦 GitHub Repository</a>
             </div>
         </div>
