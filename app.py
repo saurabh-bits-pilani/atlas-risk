@@ -321,6 +321,20 @@ def render_settings_page():
         st.caption("Maximum internal same-origin pages inspected during public review.")
 
     st.markdown("---")
+    st.subheader("Local AI Security Testing (Ollama)")
+    st.caption("Direct interactive console for deep prompt injection probing, token telemetry, and preflight testing.")
+    if st.button("🚀 Launch Interactive Ollama Testing Console", type="primary", key="btn_open_ollama_console"):
+        st.session_state["show_local_ai_console"] = True
+        st.session_state["show_archive_v04"] = False
+        st.session_state["show_archive_v01"] = False
+        st.rerun()
+
+    if st.session_state.get("show_local_ai_console") or st.session_state.get("open_local_ai_console"):
+        st.markdown("---")
+        render_local_ai_testing_tab()
+        return
+
+    st.markdown("---")
     st.subheader("Historical Platform Archives (Auditing & Regression)")
     st.caption("Frozen historical modules are preserved here for academic and verification review:")
 
@@ -330,11 +344,13 @@ def render_settings_page():
             st.info("Launches the preserved 24-question system profiling form.")
             if st.button("Launch v0.4 Questionnaire Mode"):
                 st.session_state["show_archive_v04"] = True
+                st.session_state["show_local_ai_console"] = False
     with col_a2:
         with st.expander("📜 Open Historical v0.1 POC Baseline"):
             st.info("Launches the preserved v0.1 proof-of-concept interface.")
             if st.button("Launch v0.1 Baseline Mode"):
                 st.session_state["show_archive_v01"] = True
+                st.session_state["show_local_ai_console"] = False
 
     if st.session_state.get("show_archive_v04"):
         st.markdown("---")

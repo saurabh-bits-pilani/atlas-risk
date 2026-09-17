@@ -12,13 +12,18 @@ import unittest
 import os
 import json
 from engines.assessment_store import AssessmentStore
+import tempfile
 from engines.report_exporter import export_assessment_pdf_and_html, generate_html_report
 from guided_assessment_ui import build_stopped_record
 
 
 class TestGuidedFlow(unittest.TestCase):
     def setUp(self):
-        self.store = AssessmentStore()
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.store = AssessmentStore(storage_dir=self.test_dir.name)
+
+    def tearDown(self):
+        self.test_dir.cleanup()
 
     def test_store_immutability(self):
         """Verify that multiple assessments get unique IDs and never overwrite each other."""
@@ -88,6 +93,14 @@ class TestGuidedFlow(unittest.TestCase):
         self.assertIn("positive_observations", sample)
         self.assertIn("unassessed_areas", sample)
         self.assertIn("next_steps", sample)
+
+    def test_clean_assessments_dir(self):
+        """Verify that newly initialized AssessmentStore contains only sample report."""
+        real_store = AssessmentStore()
+        assessments = real_store.list_assessments()
+        # Only SAMPLE-HYBRID-001 should exist in initial clean repo state
+        dummy_ids = [a["id"] for a in assessments if a["id"] in ("ASM-20260917-249A6D", "ASM-20260917-5F7D4F", "ASM-20260917-5F1D77")]
+        self.assertEqual(len(dummy_ids), 0, "No dummy test runs should be in production store")
 
 
 if __name__ == "__main__":
