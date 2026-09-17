@@ -1,0 +1,363 @@
+{
+  "id": "ASM-20260917-5F1D77",
+  "name": "Web Review: 127.0.0.1:8088/hybrid_app",
+  "target_type": "website",
+  "target_input": "http://127.0.0.1:8088/hybrid_app",
+  "created_at": "2026-09-17T15:31:28.773968+00:00",
+  "status": "PARTIAL",
+  "summary": "Bounded review inspected 2 accessible page(s). Identified 3 issue(s) with practical fixes. 1 section(s) were protected and could not be assessed without credentials.",
+  "counts": {
+    "issues": 3,
+    "no_issue": 8,
+    "not_completed": 1,
+    "not_applicable": 1
+  },
+  "findings": [
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing `X-Frame-Options` header",
+      "observed": "Response header `X-Frame-Options` was not returned.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "Response header `X-Frame-Options` was not returned.",
+      "action": "Add `X-Frame-Options: DENY` or `SAMEORIGIN` to defend against UI clickjacking.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    },
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing `Referrer-Policy` header",
+      "observed": "Response header `Referrer-Policy` was not returned.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "Response header `Referrer-Policy` was not returned.",
+      "action": "Set `Referrer-Policy: strict-origin-when-cross-origin` to avoid leaking sensitive URLs in outgoing requests.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    },
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing Content-Security-Policy (CSP)",
+      "observed": "No `Content-Security-Policy` header found on the root HTML response.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+      "action": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    }
+  ],
+  "positive_observations": [
+    {
+      "area": "Usability",
+      "observation": "Page has a clear, descriptive browser title.",
+      "evidence": "Title: `DevVibe Studio - Collaborative AI Workspace`"
+    },
+    {
+      "area": "Usability",
+      "observation": "Interactive entry points and forms are present and discoverable.",
+      "evidence": "1 buttons, 0 forms"
+    },
+    {
+      "area": "Accessibility",
+      "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+      "evidence": "lang=\"en\""
+    },
+    {
+      "area": "Accessibility",
+      "observation": "All discovered images include non-empty `alt` attributes.",
+      "evidence": "Verified 1 image(s) with valid alt text."
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (8.8ms) on `http://127.0.0.1:8088/hybrid_app`.",
+      "evidence": "TTFB: 8.7ms, Payload: 625 B"
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (1.1ms) on `http://127.0.0.1:8088/hybrid_app/pricing`.",
+      "evidence": "TTFB: 1.0ms, Payload: 377 B"
+    },
+    {
+      "area": "Security / Privacy",
+      "observation": "Security header `X-Content-Type-Options` is actively configured.",
+      "evidence": "`nosniff`"
+    },
+    {
+      "area": "Published Pricing",
+      "observation": "Public pricing structure is clearly published on the accessible site.",
+      "evidence": "Detected: Pricing ($29/mo)"
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "http://127.0.0.1:8088/hybrid_app/dashboard",
+      "reason": "HTTP 401 Protected Resource (Unauthorized). Authentication credentials or session token required.",
+      "required_access": "Provide test account credentials (username/password) or session cookie to unlock authenticated page analysis."
+    },
+    {
+      "area": "Internal Backend Architecture & Database Security",
+      "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+      "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+    },
+    {
+      "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+      "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+      "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+    }
+  ],
+  "next_steps": [
+    "To assess `http://127.0.0.1:8088/hybrid_app/dashboard`: HTTP 401 Protected Resource (Unauthorized). Authentication credentials or session token required.. Requires test account credentials or private API connection.",
+    "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+  ],
+  "raw_telemetry": {
+    "target_url": "http://127.0.0.1:8088/hybrid_app",
+    "origin": "http://127.0.0.1:8088",
+    "inspected_at": "2026-09-17T15:31:28.257578+00:00",
+    "pages_inspected": [
+      {
+        "url": "http://127.0.0.1:8088/hybrid_app",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 8.7,
+        "total_latency_ms": 8.8,
+        "content_length_bytes": 625,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Thu, 17 Sep 2026 15:31:28 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "X-Content-Type-Options": "nosniff"
+        },
+        "discovered_links": [
+          "http://127.0.0.1:8088/hybrid_app/pricing",
+          "http://127.0.0.1:8088/hybrid_app/dashboard"
+        ],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "DevVibe Studio - Collaborative AI Workspace",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "DevVibe Studio"
+          ],
+          "images_count": 1,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 1,
+          "pricing_signals": [
+            "Pricing ($29/mo)"
+          ]
+        }
+      },
+      {
+        "url": "http://127.0.0.1:8088/hybrid_app/pricing",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 1.0,
+        "total_latency_ms": 1.1,
+        "content_length_bytes": 377,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Thu, 17 Sep 2026 15:31:28 GMT",
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "discovered_links": [
+          "http://127.0.0.1:8088/hybrid_app"
+        ],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "Pricing - DevVibe Studio",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "DevVibe Pricing"
+          ],
+          "images_count": 0,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 0,
+          "pricing_signals": [
+            "Pricing - DevVibe Studio",
+            "DevVibe Pricing",
+            "Solo Developer: $29/mo | Team: $99/mo"
+          ]
+        }
+      }
+    ],
+    "unassessed_areas": [
+      {
+        "url": "http://127.0.0.1:8088/hybrid_app/dashboard",
+        "is_accessible": false,
+        "http_status": 401,
+        "ttfb_ms": null,
+        "total_latency_ms": null,
+        "content_length_bytes": null,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Thu, 17 Sep 2026 15:31:28 GMT",
+          "Content-Type": "application/json; charset=utf-8",
+          "WWW-Authenticate": "Bearer realm=\"DevVibe Dashboard\""
+        },
+        "discovered_links": [],
+        "auth_required": true,
+        "unassessed_reason": "HTTP 401 Protected Resource (Unauthorized). Authentication credentials or session token required."
+      }
+    ],
+    "categories": {
+      "usability": {
+        "passed": [],
+        "issues": []
+      },
+      "accessibility": {
+        "passed": [],
+        "issues": []
+      },
+      "performance": {
+        "measurements": [],
+        "issues": []
+      },
+      "security_privacy": {
+        "passed": [],
+        "issues": []
+      },
+      "pricing": {
+        "status": "DETECTED",
+        "evidence": [
+          "Pricing ($29/mo)"
+        ]
+      }
+    },
+    "what_we_verified": [
+      {
+        "domain": "Usability",
+        "item": "Document Title",
+        "evidence": "Found `<title>DevVibe Studio - Collaborative AI Workspace</title>` on http://127.0.0.1:8088/hybrid_app",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Usability",
+        "item": "Interactive UI Elements",
+        "evidence": "Detected 1 interactive button(s) and 0 form(s)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "HTML Language Declaration",
+        "evidence": "`<html lang=\"en\">` defined",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "Mobile Viewport Meta Tag",
+        "evidence": "`<meta name=\"viewport\" ...>` configured",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (http://127.0.0.1:8088/hybrid_app)",
+        "evidence": "TTFB: 8.7ms | Total Load: 8.8ms | Payload: 625 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (http://127.0.0.1:8088/hybrid_app/pricing)",
+        "evidence": "TTFB: 1.0ms | Total Load: 1.1ms | Payload: 377 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Security / Privacy",
+        "item": "Header: X-Content-Type-Options",
+        "evidence": "`X-Content-Type-Options: nosniff`",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Published Pricing",
+        "item": "Pricing Information",
+        "evidence": "Found pricing indicators: Pricing ($29/mo)",
+        "status": "VERIFIED"
+      }
+    ],
+    "positive_observations": [
+      {
+        "area": "Usability",
+        "observation": "Page has a clear, descriptive browser title.",
+        "evidence": "Title: `DevVibe Studio - Collaborative AI Workspace`"
+      },
+      {
+        "area": "Usability",
+        "observation": "Interactive entry points and forms are present and discoverable.",
+        "evidence": "1 buttons, 0 forms"
+      },
+      {
+        "area": "Accessibility",
+        "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+        "evidence": "lang=\"en\""
+      },
+      {
+        "area": "Accessibility",
+        "observation": "All discovered images include non-empty `alt` attributes.",
+        "evidence": "Verified 1 image(s) with valid alt text."
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (8.8ms) on `http://127.0.0.1:8088/hybrid_app`.",
+        "evidence": "TTFB: 8.7ms, Payload: 625 B"
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (1.1ms) on `http://127.0.0.1:8088/hybrid_app/pricing`.",
+        "evidence": "TTFB: 1.0ms, Payload: 377 B"
+      },
+      {
+        "area": "Security / Privacy",
+        "observation": "Security header `X-Content-Type-Options` is actively configured.",
+        "evidence": "`nosniff`"
+      },
+      {
+        "area": "Published Pricing",
+        "observation": "Public pricing structure is clearly published on the accessible site.",
+        "evidence": "Detected: Pricing ($29/mo)"
+      }
+    ],
+    "issues_observed": [
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing `X-Frame-Options` header",
+        "evidence": "Response header `X-Frame-Options` was not returned.",
+        "fix": "Add `X-Frame-Options: DENY` or `SAMEORIGIN` to defend against UI clickjacking."
+      },
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing `Referrer-Policy` header",
+        "evidence": "Response header `Referrer-Policy` was not returned.",
+        "fix": "Set `Referrer-Policy: strict-origin-when-cross-origin` to avoid leaking sensitive URLs in outgoing requests."
+      },
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing Content-Security-Policy (CSP)",
+        "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+        "fix": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`."
+      }
+    ],
+    "what_could_not_be_assessed": [
+      {
+        "area": "http://127.0.0.1:8088/hybrid_app/dashboard",
+        "reason": "HTTP 401 Protected Resource (Unauthorized). Authentication credentials or session token required.",
+        "required_access": "Provide test account credentials (username/password) or session cookie to unlock authenticated page analysis."
+      },
+      {
+        "area": "Internal Backend Architecture & Database Security",
+        "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+        "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+      },
+      {
+        "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+        "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+        "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+      }
+    ],
+    "next_steps_required_access": [
+      "To assess `http://127.0.0.1:8088/hybrid_app/dashboard`: HTTP 401 Protected Resource (Unauthorized). Authentication credentials or session token required.. Requires test account credentials or private API connection.",
+      "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+    ]
+  }
+}
