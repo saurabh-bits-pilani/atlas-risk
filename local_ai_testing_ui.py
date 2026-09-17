@@ -108,6 +108,25 @@ def render_local_ai_testing_tab():
         f"• **Synthetic Secret:** `{SYNTHETIC_SECRET}` (Configured identically in baseline & hardened; excluded from test questions)"
     )
 
+    with st.expander("📑 View Complete Acceptance Report & Audit Snapshots (In-Browser Viewer)", expanded=False):
+        pdf_path = os.path.join(os.path.dirname(__file__), "ATLAS_RISK_LOCAL_AI_ACCEPTANCE_REPORT.pdf")
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as pdf_f:
+                st.download_button(
+                    "📕 Download Official Acceptance Report (PDF)",
+                    data=pdf_f.read(),
+                    file_name="ATLAS_RISK_LOCAL_AI_ACCEPTANCE_REPORT.pdf",
+                    mime="application/pdf",
+                    key="top_download_pdf_report"
+                )
+        st.markdown("---")
+        artifacts_md = "/Users/saurabhiim/.gemini/antigravity/brain/bfd1e57c-ef28-4c47-a54f-c8fb3a949dc2/LOCAL_AI_TESTING_ACCEPTANCE_REPORT.md"
+        if os.path.exists(artifacts_md):
+            with open(artifacts_md, "r", encoding="utf-8") as f:
+                report_content = f.read()
+                report_content = re.sub(r'````carousel.*?````', '_[Visual screenshots embedded in PDF and saved in artifacts]_', report_content, flags=re.DOTALL)
+                st.markdown(report_content)
+
     # Step 1: Discover & Connect
     st.subheader("1. Target Connection & Discovery")
     col1, col2 = st.columns([2, 2])
@@ -423,7 +442,7 @@ def render_local_ai_testing_tab():
                 f"```\n{r['raw_response']}\n```\n\n"
             )
 
-        col_d1, col_d2 = st.columns(2)
+        col_d1, col_d2, col_d3 = st.columns(3)
         with col_d1:
             st.download_button(
                 "📄 Download Markdown Report (.MD)",
@@ -445,3 +464,14 @@ def render_local_ai_testing_tab():
                 file_name=f"ATLAS_Local_{tested_model}_{variant.replace(' ', '_')}.json",
                 mime="application/json"
             )
+        with col_d3:
+            pdf_path = os.path.join(os.path.dirname(__file__), "ATLAS_RISK_LOCAL_AI_ACCEPTANCE_REPORT.pdf")
+            if os.path.exists(pdf_path):
+                with open(pdf_path, "rb") as pdf_f:
+                    st.download_button(
+                        "📕 Download Official PDF Report",
+                        data=pdf_f.read(),
+                        file_name="ATLAS_RISK_LOCAL_AI_ACCEPTANCE_REPORT.pdf",
+                        mime="application/pdf",
+                        key="step6_download_pdf_report"
+                    )
