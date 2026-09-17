@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from app_v01 import render_v01_app
 from questionnaire_ui import render_interactive_questionnaire_app
 from local_ai_testing_ui import render_local_ai_testing_tab
+from executive_report_ui import render_executive_report_tab
 from engines.threat_mapper import ThreatMapper
 from engines.test_runner import TestRunner
 from engines.evaluation_engine import EvaluationEngine
@@ -328,6 +329,7 @@ def main():
     mode = st.sidebar.radio(
         "Application Platform Mode",
         [
+            "📊 Executive Management Report",
             "🖥️ Local AI Testing (Ollama Live Model)",
             "🛡️ New AI System Assessment Mode (v0.4.0-beta)",
             "🔬 Research / Benchmark Mode (v0.3.0 Freeze)",
@@ -336,7 +338,9 @@ def main():
     )
     st.sidebar.markdown("---")
 
-    if "Local AI Testing" in mode:
+    if "Executive Management Report" in mode:
+        render_executive_report_tab()
+    elif "Local AI Testing" in mode:
         render_local_ai_testing_tab()
     elif "v0.4.0" in mode or "New AI System Assessment" in mode:
         render_interactive_questionnaire_app()
