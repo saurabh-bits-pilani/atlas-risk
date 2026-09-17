@@ -48,6 +48,16 @@ class AssessmentStore:
         except Exception:
             return None
 
+    def delete_assessment(self, assessment_id: str) -> bool:
+        file_path = os.path.join(self.storage_dir, f"{assessment_id}.json")
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                return True
+            except Exception:
+                return False
+        return False
+
     def list_assessments(self) -> List[Dict[str, Any]]:
         records = []
         if not os.path.exists(self.storage_dir):

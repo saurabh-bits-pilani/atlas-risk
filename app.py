@@ -258,10 +258,21 @@ def render_reports_page():
                 st.rerun()
             return
 
-    st.title("📄 Assessment Reports")
-    st.caption("Permanent, immutable archive of completed and partial assessment runs.")
+    all_recs = [r for r in store.list_assessments() if r["id"] != "SAMPLE-HYBRID-001"]
 
-    all_recs = store.list_assessments()
+    col_title, col_clear = st.columns([3, 1.2])
+    with col_title:
+        st.title("📄 Assessment Reports Archive")
+        st.caption("Permanent, verified record of completed and partial assessment runs.")
+    with col_clear:
+        if all_recs:
+            if st.button("🗑️ Clear All Reports", key="btn_clear_all_reports", help="Purge all assessment reports"):
+                for r in all_recs:
+                    store.delete_assessment(r["id"])
+                st.session_state["opened_report_id"] = None
+                st.success("All assessment reports cleared.")
+                time.sleep(0.3)
+                st.rerun()
 
     if not all_recs:
         st.info("No saved reports available yet. Launch an assessment to generate your first report.")
@@ -288,7 +299,7 @@ def render_reports_page():
 
     for rec in filtered:
         with st.container():
-            c1, c2, c3, c4 = st.columns([3, 1.2, 1.2, 1.2])
+            c1, c2, c3, c4, c5 = st.columns([2.6, 1.1, 1.1, 1.1, 0.7])
             with c1:
                 st.markdown(f"**{rec['name']}**")
                 st.caption(f"Target: `{rec['target_input']}` | Date: {rec['created_at'][:19].replace('T', ' ')} UTC")
@@ -298,7 +309,7 @@ def render_reports_page():
                 st.markdown(f"**{stat_icon} {stat}**")
                 st.caption(f"ID: `{rec['id']}`")
             with c3:
-                if st.button("Open Report", key=f"rep_open_{rec['id']}"):
+                if st.button("Open Report", key=f"rep_open_{rec['id']}", use_container_width=True):
                     st.session_state.opened_report_id = rec["id"]
                     st.rerun()
             with c4:
@@ -314,10 +325,15 @@ def render_reports_page():
                                     data=f_pdf.read(),
                                     file_name=f"{rec['id']}.pdf",
                                     mime="application/pdf",
-                                    key=f"rep_dl_{rec['id']}"
+                                    key=f"rep_dl_{rec['id']}",
+                                    use_container_width=True
                                 )
                     except Exception:
                         st.caption("PDF pending")
+            with c5:
+                if st.button("🗑️", key=f"rep_del_{rec['id']}", help="Delete this assessment record"):
+                    store.delete_assessment(rec["id"])
+                    st.rerun()
             st.markdown("---")
 
 
@@ -352,18 +368,28 @@ def render_settings_page():
     st.subheader("Historical Platform Archives (Auditing & Regression)")
     st.caption("Frozen historical modules are preserved here for academic and verification review:")
 
-    col_a1, col_a2 = st.columns(2)
+    col_a1, col_a2, col_a3 = st.columns(3)
     with col_a1:
-        with st.expander("🔬 Open Historical v0.4 Architecture Questionnaire"):
+        with st.expander("🔬 v0.4 Architecture Questionnaire"):
             st.info("Launches the preserved 24-question system profiling form.")
-            if st.button("Launch v0.4 Questionnaire Mode"):
+            if st.button("Launch v0.4 Questionnaire"):
                 st.session_state["show_archive_v04"] = True
                 st.session_state["show_local_ai_console"] = False
+                st.session_state["show_archive_bench"] = False
     with col_a2:
-        with st.expander("📜 Open Historical v0.1 POC Baseline"):
+        with st.expander("📜 v0.1 POC Baseline"):
             st.info("Launches the preserved v0.1 proof-of-concept interface.")
-            if st.button("Launch v0.1 Baseline Mode"):
+            if st.button("Launch v0.1 Baseline"):
                 st.session_state["show_archive_v01"] = True
+                st.session_state["show_local_ai_console"] = False
+                st.session_state["show_archive_bench"] = False
+    with col_a3:
+        with st.expander("📊 Research & Benchmarks"):
+            st.info("Ground-truth benchmark test harness and ASR dataset.")
+            if st.button("Launch Benchmarks"):
+                st.session_state["show_archive_bench"] = True
+                st.session_state["show_archive_v04"] = False
+                st.session_state["show_archive_v01"] = False
                 st.session_state["show_local_ai_console"] = False
 
     if st.session_state.get("show_archive_v04"):
@@ -372,6 +398,17 @@ def render_settings_page():
     elif st.session_state.get("show_archive_v01"):
         st.markdown("---")
         render_v01_app()
+    elif st.session_state.get("show_archive_bench"):
+        st.markdown("---")
+        st.subheader("📊 Research & Benchmark Platform (v0.3.0 Freeze)")
+        st.caption("Preserved empirical datasets, ground-truth benchmarks, and ASR experimental platform.")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        path_cat = os.path.join(base_dir, "data", "benchmark_catalogue.json")
+        if os.path.exists(path_cat):
+            with open(path_cat, "r") as f:
+                cat_data = json.load(f)
+                st.write(f"• **Benchmark Test Cases:** {len(cat_data.get('test_cases', []))}")
+                st.write(f"• **Framework Alignment:** OWASP Top 10 for LLM (2025) & MITRE ATLAS v4.0")
 
 
 def render_help_page():
@@ -418,7 +455,6 @@ def main():
         ("🏠 Home", "🏠 Home"),
         ("➕ New assessment", "➕ New assessment"),
         ("📄 Reports", "📄 Reports"),
-        ("📊 Research & benchmarks", "📊 Research & benchmarks"),
     ]
 
     for label, target_key in primary_nav_items:
