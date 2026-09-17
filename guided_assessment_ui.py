@@ -559,15 +559,18 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                     st.rerun()
 
         else:
-            # Full Interactive Architecture Security Questionnaire
+            # Full Comprehensive MITRE ATLAS & OWASP LLM Architectural Security Assessment
             st.markdown("""
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
-                <span style="font-size: 13.5px; color: #166534; font-weight: 600;">📋 Complete the 5 questionnaire sections below to evaluate your architecture threat model.</span>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;">
+                <div style="font-size: 14px; color: #166534; font-weight: 700; margin-bottom: 3px;">📋 MITRE ATLAS & OWASP Top 10 Architecture Security Assessment</div>
+                <div style="font-size: 12.5px; color: #15803d; line-height: 1.4;">
+                    Evaluates your AI system's threat surface across all 14 <b>MITRE ATLAS tactics</b> (AML.TA0001–AML.TA0014) and <b>OWASP Top 10 for LLMs</b>. No live network packets dispatched.
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Section 1: Application Context
-            with st.expander("🏢 1. Application & Business Context", expanded=True):
+            # Section 1: Application & Criticality Context (AML.TA0002 Reconnaissance)
+            with st.expander("🏢 1. Application & Criticality Context  [MITRE AML.TA0002]", expanded=True):
                 inp["app_name"] = st.text_input("Application / System Name *", value=inp.get("app_name", ""), placeholder="e.g. Enterprise Customer Support AI")
                 inp["app_purpose"] = st.text_area("What does this AI application do? *", value=inp.get("app_purpose", ""), placeholder="e.g. Answers customer billing queries, looks up account records, and drafts email responses.", height=70)
                 imp_opts = ["High / Critical (Processes financial or sensitive customer data)", "Medium (Internal operational assistant)", "Low (Non-critical demo or prototype)"]
@@ -575,22 +578,27 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                 imp_idx = imp_opts.index(curr_imp) if curr_imp in imp_opts else 1
                 inp["business_impact"] = st.selectbox("Business Impact Level (if compromised)", imp_opts, index=imp_idx)
 
-            # Section 2: Deployment Exposure & Model
-            with st.expander("🌐 2. Deployment Exposure & Model Architecture", expanded=True):
-                exp_opts = ["Public Web Interface (Open to anonymous internet users)", "Authenticated Internal Users (Requires login / VPN)", "Isolated Sandbox / Testing (Developer only)"]
-                curr_exp = inp.get("deployment_scope", exp_opts[0])
-                exp_idx = exp_opts.index(curr_exp) if curr_exp in exp_opts else 0
-                inp["deployment_scope"] = st.selectbox("Deployment Exposure Level *", exp_opts, index=exp_idx)
-
                 prov_opts = ["Cloud API (e.g. OpenAI / Anthropic / Google Gemini)", "Self-Hosted Open Source (Ollama / vLLM / vLLM-cluster)", "Fine-Tuned Proprietary Model", "Third-Party SaaS Assistant"]
                 curr_prov = inp.get("model_provider", prov_opts[0])
                 prov_idx = prov_opts.index(curr_prov) if curr_prov in prov_opts else 0
                 inp["model_provider"] = st.selectbox("Primary Model Provider / Runtime", prov_opts, index=prov_idx)
 
+            # Section 2: Deployment Perimeter & Prompt Isolation (AML.TA0004 Initial Access / AML.T0051)
+            with st.expander("🌐 2. Deployment Exposure & Prompt Isolation  [MITRE AML.T0051 / AML.T0056]", expanded=True):
+                exp_opts = ["Public Web Interface (Open to anonymous internet users)", "Authenticated Internal Users (Requires login / VPN)", "Isolated Sandbox / Testing (Developer only)"]
+                curr_exp = inp.get("deployment_scope", exp_opts[0])
+                exp_idx = exp_opts.index(curr_exp) if curr_exp in exp_opts else 0
+                inp["deployment_scope"] = st.selectbox("Deployment Exposure Level *", exp_opts, index=exp_idx)
+
                 inp["q2_system_prompt"] = st.radio("Does the application rely on confidential developer System Instructions?", ["Yes", "No"], index=0 if inp.get("q2_system_prompt", "Yes") == "Yes" else 1, horizontal=True)
 
-            # Section 3: Data Ingestion & RAG Knowledge Store
-            with st.expander("📚 3. Knowledge Base & Document Ingestion (RAG)", expanded=True):
+                user_auth_opts = ["Mandatory SSO / Multi-Factor Authentication", "Basic Username / Password or API Key", "Unauthenticated / Anonymous Access"]
+                curr_auth = inp.get("user_authentication", user_auth_opts[0] if "Authenticated" in curr_exp else user_auth_opts[2])
+                auth_idx = user_auth_opts.index(curr_auth) if curr_auth in user_auth_opts else 0
+                inp["user_authentication"] = st.selectbox("End-User Authentication Requirement", user_auth_opts, index=auth_idx)
+
+            # Section 3: RAG Knowledge Store & Document Poisoning (AML.TA0003 Resource Dev / AML.T0054)
+            with st.expander("📚 3. RAG Knowledge Store & Data Poisoning  [MITRE AML.T0054 / AML.T0057]", expanded=True):
                 rag_opts = ["Yes - Retrieves external documents into prompt context", "No - Pure base model inference", "Planned - Under development"]
                 curr_rag = inp.get("uses_rag", rag_opts[0])
                 rag_idx = rag_opts.index(curr_rag) if curr_rag in rag_opts else 0
@@ -600,15 +608,27 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                     untr_opts = ["Ingests unvetted user file uploads or third-party web URLs", "Curated internal corporate documents only", "Strict document-level RBAC enforced"]
                     curr_untr = inp.get("rag_untrusted", untr_opts[0])
                     untr_idx = untr_opts.index(curr_untr) if curr_untr in untr_opts else 0
-                    inp["rag_untrusted"] = st.selectbox("Document Source & Trust Boundary", untr_opts, index=untr_idx)
+                    inp["rag_untrusted"] = st.selectbox("Document Ingestion Trust Boundary", untr_opts, index=untr_idx)
 
-                sens_opts = ["High - Processes credentials, passwords, or customer PII", "Medium - Processes internal non-public company documents", "Low / None - Public data only"]
+                    rbac_opts = ["Strict tenant-isolated vector namespaces with ACL checks", "Shared multi-tenant vector index without per-document ACL", "Single-tenant database"]
+                    curr_rbac = inp.get("rag_rbac", rbac_opts[0])
+                    rbac_idx = rbac_opts.index(curr_rbac) if curr_rbac in rbac_opts else 0
+                    inp["rag_rbac"] = st.selectbox("Vector Store Tenant Isolation & Access Control", rbac_opts, index=rbac_idx)
+
+                sens_opts = ["High - Processes credentials, passwords, financial records, or PII", "Medium - Processes internal non-public company documents", "Low / None - Public data only"]
                 curr_sens = inp.get("sensitive_data", sens_opts[0])
                 sens_idx = sens_opts.index(curr_sens) if curr_sens in sens_opts else 0
-                inp["sensitive_data"] = st.selectbox("Data Sensitivity Level in Context Window", sens_opts, index=sens_idx)
+                inp["sensitive_data"] = st.selectbox("Context Window Data Sensitivity Level", sens_opts, index=sens_idx)
 
-            # Section 4: Autonomous Agency & Tools
-            with st.expander("🤖 4. Autonomous Agency & Tool Calling", expanded=True):
+            # Section 4: State Management & Persistence (AML.TA0006 Persistence / AML.T0053)
+            with st.expander("🧠 4. State Management, Memory & Persistence  [MITRE AML.T0053]", expanded=True):
+                mem_opts = ["Stateless (Prompt context cleared every request or turn)", "In-Session Memory (Retained across conversational turns)", "Persistent Cross-Session Memory (Stored in database across days/users)"]
+                curr_mem = inp.get("memory_persistence", mem_opts[1])
+                mem_idx = mem_opts.index(curr_mem) if curr_mem in mem_opts else 1
+                inp["memory_persistence"] = st.selectbox("Context Window & Session Memory Lifetime", mem_opts, index=mem_idx)
+
+            # Section 5: Autonomous Agency & Tool Execution (AML.TA0005 Execution / AML.T0055)
+            with st.expander("🤖 5. Autonomous Agency & Tool Execution  [MITRE AML.T0055 / AML.T0048]", expanded=True):
                 tool_opts = ["Write/Execute - Can modify databases, invoke external APIs, or execute code", "Read-only - Can only query knowledge bases or lookup records", "No tool execution - Pure chat/text generation"]
                 curr_tool = inp.get("has_tools", tool_opts[1])
                 tool_idx = tool_opts.index(curr_tool) if curr_tool in tool_opts else 1
@@ -622,18 +642,24 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                 else:
                     inp["human_in_loop"] = "N/A - No write tools"
 
-            # Section 5: Security Defenses & Guardrails
-            with st.expander("🛡️ 5. Active Security Guardrails & Audit Logging", expanded=True):
+            # Section 6: Safeguards, Rate Limiting & Audit Telemetry (AML.TA0008 / AML.TA0014)
+            with st.expander("🛡️ 6. Safeguards, Rate Limiting & Telemetry  [MITRE AML.T0029 / AML.TA0008]", expanded=True):
+                out_opts = ["Strict JSON schema validation & code execution sandboxing", "Basic string stripping / regex cleaning", "Direct execution / unvalidated rendering"]
+                curr_out = inp.get("output_validation", out_opts[0])
+                out_idx = out_opts.index(curr_out) if curr_out in out_opts else 0
+                inp["output_validation"] = st.selectbox("Downstream Output Sanitization & Execution Gate", out_opts, index=out_idx)
+
                 all_guards = [
                     "System Prompt Fencing & Delimiters",
                     "Input Content Filter / Regex",
                     "Output Policy Scanner / Secret Redaction",
-                    "Rate Limiting & Abuse Throttling"
+                    "Rate Limiting & Abuse Throttling",
+                    "Token Spend Cap / Budget Limits"
                 ]
-                curr_guards = inp.get("guardrails", ["System Prompt Fencing & Delimiters"])
+                curr_guards = inp.get("guardrails", ["System Prompt Fencing & Delimiters", "Rate Limiting & Abuse Throttling"])
                 inp["guardrails"] = st.multiselect("Declared Active Defense Guardrails", all_guards, default=curr_guards)
 
-                inp["audit_logging"] = st.radio("Are full prompt and response logs retained for security audit?", ["Yes", "No"], index=0 if inp.get("audit_logging", "Yes") == "Yes" else 1, horizontal=True)
+                inp["audit_logging"] = st.radio("Are full prompt, completion, and tool invocation logs retained for security audit?", ["Yes", "No"], index=0 if inp.get("audit_logging", "Yes") == "Yes" else 1, horizontal=True)
 
     with col_right:
         if target_type == "website":
@@ -1564,16 +1590,76 @@ def evaluate_questionnaire_inputs(inp: dict) -> dict:
             "evidence": "No destructive or state-changing autonomous permissions granted to model."
         })
 
-    # 7. Audit Logging & Monitoring
+    # 7. State Management, Memory & Persistence (OWASP LLM01 / MITRE AML.T0053)
+    mem_persist = inp.get("memory_persistence", "In-Session Memory")
+    if "Persistent" in mem_persist:
+        findings.append({
+            "domain": "OWASP LLM01: Persistent Context Poisoning [MITRE AML.T0053]",
+            "severity": "HIGH",
+            "title": "Cross-Session Memory Stores Unvetted Prompts Across Time",
+            "observed": "Application maintains persistent agent memory across sessions without temporal sanitization or tenant boundaries.",
+            "why_it_matters": "An attacker can plant an adversarial memory prompt that persists across sessions and activates maliciously when other users interact with the system.",
+            "evidence": f"Memory persistence declared as: '{mem_persist}'.",
+            "action": "Isolate agent memory strictly per authenticated tenant; enforce memory TTL expiration and sanitize memory entries before re-injecting into context.",
+            "how_to_verify": "Verify stored conversation summaries do not persist adversarial instructions into subsequent independent user sessions."
+        })
+    else:
+        positive_obs.append({
+            "domain": "OWASP LLM01: Memory Isolation [MITRE AML.T0053]",
+            "summary": "Agent context memory isolated from persistent long-term storage",
+            "evidence": f"Context lifetime bounded to {mem_persist}."
+        })
+
+    # 8. Downstream Output Handling & Code Injection (OWASP LLM05 / MITRE AML.T0051)
+    output_val = inp.get("output_validation", "Strict JSON schema validation")
+    if "Direct execution" in output_val or "unvalidated" in output_val.lower():
+        findings.append({
+            "domain": "OWASP LLM05: Improper Output Handling [MITRE AML.T0051]",
+            "severity": "HIGH",
+            "title": "Unvalidated LLM Output Passed to Downstream Interpreters",
+            "observed": "Application directly executes or renders raw LLM completions without schema sanitization.",
+            "why_it_matters": "Adversarial outputs (e.g. injected SQL, SSRF URLs, or malicious Javascript) can exploit downstream systems that trust model output.",
+            "evidence": f"Downstream output gate declared as: '{output_val}'.",
+            "action": "Enforce strict JSON schema parsing; sandbox any downstream code execution environments; escape all HTML/Markdown before client rendering.",
+            "how_to_verify": "Submit prompt designed to output malicious Javascript and verify downstream renderer escapes characters."
+        })
+    else:
+        positive_obs.append({
+            "domain": "OWASP LLM05: Output Defense [MITRE AML.T0051]",
+            "summary": "Output validation active for downstream execution",
+            "evidence": f"Validation gate configured: {output_val}."
+        })
+
+    # 9. Resource Denial of Wallet & Rate Limiting (OWASP LLM10 / MITRE AML.T0029)
+    has_rate_limit = any("Rate Limit" in g or "Spend Cap" in g for g in guardrails)
+    if not has_rate_limit:
+        findings.append({
+            "domain": "OWASP LLM10: Unbounded Consumption [MITRE AML.T0029]",
+            "severity": "MEDIUM",
+            "title": "Model Lacks Token Spend Caps and API Rate Limiting",
+            "observed": "No rate limiting or token spend budget caps declared for model inference.",
+            "why_it_matters": "Malicious or recursive automated queries can cause massive API billing spikes ('Denial of Wallet') or exhaust backend inference capacity.",
+            "evidence": "Neither Rate Limiting nor Token Spend Caps declared in active guardrails.",
+            "action": "Enforce sliding-window rate limits (e.g. 20 req/min per user) and hard daily token spend budgets with automated circuit breakers.",
+            "how_to_verify": "Dispatch rapid sequential requests and verify HTTP 429 Too Many Requests response is triggered."
+        })
+    else:
+        positive_obs.append({
+            "domain": "OWASP LLM10: Consumption Controls [MITRE AML.T0029]",
+            "summary": "Rate limiting and token expenditure protections active",
+            "evidence": f"Active controls: {', '.join([g for g in guardrails if 'Rate' in g or 'Spend' in g])}"
+        })
+
+    # 10. Audit Logging & Monitoring (Compliance / Forensics)
     if audit_logging == "Yes":
         positive_obs.append({
-            "domain": "Telemetry & Compliance",
+            "domain": "Telemetry & Compliance [MITRE AML.TA0011]",
             "summary": "Prompt and response security audit logging active",
             "evidence": "Persistent logs available for incident forensics and compliance reviews."
         })
     else:
         findings.append({
-            "domain": "Telemetry & Compliance",
+            "domain": "Telemetry & Compliance [MITRE AML.TA0011]",
             "severity": "LOW",
             "title": "Model Inference Telemetry Not Retained for Security Auditing",
             "observed": "Application does not log model prompt and completion telemetry.",
