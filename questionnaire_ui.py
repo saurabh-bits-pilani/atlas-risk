@@ -311,8 +311,10 @@ def render_interactive_questionnaire_app():
                     with st.expander(f"{badge_icon} — {ex.test_name} ({ex.test_id})", expanded=True):
                         st.markdown(f"**Verdict:** `{v_label}` (Confidence: `{conf*100:.0f}%`)")
                         st.markdown(f"• **Evaluator Rationale:** {rationale}")
-                        st.markdown(f"• **Prompt Input:** `{ex.prompt_input}`")
-                        st.markdown(f"• **Raw Target Response:** `{ex.raw_response}`")
+                        st.markdown("• **Prompt Input:**")
+                        st.code(ex.prompt_input)
+                        st.markdown("• **Raw Target Response:**")
+                        st.code(ex.raw_response)
                         st.markdown(f"• **Risk Score:** `{ex.computed_risk_score:.4f}` ({ex.severity_rating})")
 
                 # Step 6: Retest & Post-Mitigation Verification Workflow
