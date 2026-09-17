@@ -220,8 +220,26 @@ def navigate_to(tab_name: str, extra_state: dict = None):
         st.session_state["stop_requested"] = False
         if not extra_state or "wizard_step" not in extra_state:
             st.session_state["wizard_step"] = 1
-        if "wizard_inputs" in st.session_state:
-            st.session_state["wizard_inputs"]["auth_granted"] = False
+        
+        # Initialize fresh, empty inputs so previous targets (e.g. Notion) never persist
+        target = extra_state.get("target_type", "website") if extra_state else "website"
+        st.session_state["wizard_inputs"] = {
+            "target_type": target,
+            "url": "",
+            "app_name": "",
+            "app_purpose": "",
+            "has_ai_feature": "Not sure",
+            "has_rag": "I don't know",
+            "has_tools": "No",
+            "sensitive_data": "None",
+            "crawl_depth": 3,
+            "github_url": "",
+            "chatbot_url": "",
+            "chatbot_type": "Custom Web Assistant / Webhook",
+            "model": "llama3.2:1b",
+            "variant": "Baseline (Unprotected)",
+            "auth_granted": False
+        }
 
     if tab_name in ("📄 Reports", "📑 Reports"):
         if not extra_state or "opened_report_id" not in extra_state:
@@ -232,8 +250,6 @@ def navigate_to(tab_name: str, extra_state: dict = None):
             if k == "wizard_step":
                 st.session_state["wizard_step"] = v
             elif k == "target_type":
-                if "wizard_inputs" not in st.session_state:
-                    st.session_state["wizard_inputs"] = {}
                 st.session_state["wizard_inputs"]["target_type"] = v
             else:
                 st.session_state[k] = v
@@ -244,6 +260,17 @@ def navigate_to(tab_name: str, extra_state: dict = None):
 
 def render_reports_page():
     store = AssessmentStore()
+
+    # Top Navigation Row
+    col_rtb1, col_rtb2, col_rtsp = st.columns([2, 2.2, 5.8])
+    with col_rtb1:
+        if st.button("← Back to Home", key="rep_top_back_home"):
+            navigate_to("🏠 Home")
+    with col_rtb2:
+        if st.button("➕ New Assessment", key="rep_top_new_btn"):
+            navigate_to("➕ New assessment")
+
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
     # If a specific report is currently open, render its full results view
     if "opened_report_id" in st.session_state and st.session_state.opened_report_id:
@@ -338,6 +365,13 @@ def render_reports_page():
 
 
 def render_settings_page():
+    # Top Navigation Row
+    col_stb, col_stsp = st.columns([2, 8])
+    with col_stb:
+        if st.button("← Back to Home", key="settings_top_back_home"):
+            navigate_to("🏠 Home")
+
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     st.title("⚙️ System Settings & Preferences")
     st.caption("Manage connection endpoints, scan limits, and archived platform interfaces.")
 
@@ -412,6 +446,13 @@ def render_settings_page():
 
 
 def render_help_page():
+    # Top Navigation Row
+    col_htb, col_htsp = st.columns([2, 8])
+    with col_htb:
+        if st.button("← Back to Home", key="help_top_back_home"):
+            navigate_to("🏠 Home")
+
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     st.title("❓ Help & Assessment Guide")
     st.caption("Everything you need to know about how ATLAS-Risk evaluates applications.")
 

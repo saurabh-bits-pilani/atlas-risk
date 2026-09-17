@@ -102,6 +102,26 @@ class TestGuidedFlow(unittest.TestCase):
         dummy_ids = [a["id"] for a in assessments if a["id"] in ("ASM-20260917-249A6D", "ASM-20260917-5F7D4F", "ASM-20260917-5F1D77")]
         self.assertEqual(len(dummy_ids), 0, "No dummy test runs should be in production store")
 
+    def test_distinct_target_evaluations(self):
+        """Verify GitHub, Chatbot, and Questionnaire produce genuine independent assessment records."""
+        from guided_assessment_ui import inspect_github_repository, inspect_chatbot_endpoint, evaluate_questionnaire_inputs
+
+        gh_rec = inspect_github_repository("https://github.com/expressjs/express", branch="master")
+        self.assertEqual(gh_rec["target_type"], "github")
+        self.assertNotEqual(gh_rec["id"], "SAMPLE-HYBRID-001")
+        self.assertIn("express", gh_rec["name"].lower())
+
+        cb_rec = inspect_chatbot_endpoint("http://127.0.0.1:9999/chat", "Dify Webhook", app_name="SupportBot")
+        self.assertEqual(cb_rec["target_type"], "chatbot")
+        self.assertNotEqual(cb_rec["id"], "SAMPLE-HYBRID-001")
+        self.assertIn("SupportBot", cb_rec["name"])
+
+        q_rec = evaluate_questionnaire_inputs({"app_name": "FinanceAssistant", "deployment_scope": "Public Web Interface", "uses_rag": "Yes"})
+        self.assertEqual(q_rec["target_type"], "questionnaire")
+        self.assertNotEqual(q_rec["id"], "SAMPLE-HYBRID-001")
+        self.assertIn("FinanceAssistant", q_rec["name"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

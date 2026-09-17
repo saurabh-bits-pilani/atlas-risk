@@ -97,48 +97,60 @@ def render_home_page(on_navigate: Callable[[str, Any], None]):
     # "What can you assess?" Section
     st.markdown('<h2 style="font-size: 1.35rem; font-weight: 700; color: #0f172a; margin: 0 0 16px 0;">What can you assess?</h2>', unsafe_allow_html=True)
 
-    c_card1, c_card2, c_card3 = st.columns(3)
+    c_card1, c_card2, c_card3, c_card4 = st.columns(4)
 
     with c_card1:
         card1_html = (
-            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; min-height: 120px; margin-bottom: 8px;">'
-            '<div style="font-size: 24px; margin-bottom: 10px;">🌐</div>'
+            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 16px; min-height: 128px; margin-bottom: 8px;">'
+            '<div style="font-size: 24px; margin-bottom: 8px;">🌐</div>'
             '<div style="font-size: 14.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Website or SaaS</div>'
-            '<div style="font-size: 12.5px; color: #64748b;">Review publicly accessible pages.</div>'
+            '<div style="font-size: 12px; color: #64748b; line-height: 1.4;">Review public pages & security headers.</div>'
             '</div>'
         )
         st.markdown(card1_html, unsafe_allow_html=True)
-        if st.button("Select Website or SaaS →", key="btn_assess_web", use_container_width=True):
+        if st.button("Select Website →", key="btn_assess_web", use_container_width=True):
             on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "website"})
 
     with c_card2:
         card2_html = (
-            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; min-height: 120px; margin-bottom: 8px;">'
-            '<div style="font-size: 24px; margin-bottom: 10px;">🐙</div>'
+            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 16px; min-height: 128px; margin-bottom: 8px;">'
+            '<div style="font-size: 24px; margin-bottom: 8px;">🐙</div>'
             '<div style="font-size: 14.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">GitHub project</div>'
-            '<div style="font-size: 12.5px; color: #64748b;">Inspect available code and configuration.</div>'
+            '<div style="font-size: 12px; color: #64748b; line-height: 1.4;">Inspect repository code & security policy.</div>'
             '</div>'
         )
         st.markdown(card2_html, unsafe_allow_html=True)
-        if st.button("Select GitHub project →", key="btn_assess_github", use_container_width=True):
+        if st.button("Select GitHub →", key="btn_assess_github", use_container_width=True):
             on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "github"})
 
     with c_card3:
         card3_html = (
-            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; min-height: 120px; margin-bottom: 8px;">'
-            '<div style="font-size: 24px; margin-bottom: 10px;">💬</div>'
-            '<div style="font-size: 14.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">AI chatbot or model</div>'
-            '<div style="font-size: 12.5px; color: #64748b;">Check a supported AI connection.</div>'
+            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 16px; min-height: 128px; margin-bottom: 8px;">'
+            '<div style="font-size: 24px; margin-bottom: 8px;">🤖</div>'
+            '<div style="font-size: 14.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">AI chatbot (Cloud)</div>'
+            '<div style="font-size: 12px; color: #64748b; line-height: 1.4;">Test web assistants, Dify & webhooks.</div>'
             '</div>'
         )
         st.markdown(card3_html, unsafe_allow_html=True)
-        if st.button("Select AI chatbot →", key="btn_assess_chatbot", use_container_width=True):
+        if st.button("Select Chatbot →", key="btn_assess_chatbot", use_container_width=True):
             on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "chatbot"})
 
-    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
-    c_q_link, c_q_space = st.columns([2.5, 3])
+    with c_card4:
+        card4_html = (
+            '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 16px; min-height: 128px; margin-bottom: 8px;">'
+            '<div style="font-size: 24px; margin-bottom: 8px;">🦙</div>'
+            '<div style="font-size: 14.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Local AI (Ollama)</div>'
+            '<div style="font-size: 12px; color: #64748b; line-height: 1.4;">Audit local models via port 8080/ngrok.</div>'
+            '</div>'
+        )
+        st.markdown(card4_html, unsafe_allow_html=True)
+        if st.button("Select Local AI →", key="btn_assess_local_model", use_container_width=True):
+            on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "local_model"})
+
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    c_q_link, c_q_space = st.columns([3.5, 2.5])
     with c_q_link:
-        if st.button("No connection? Start with a questionnaire →", key="btn_assess_questionnaire"):
+        if st.button("📋 Early stage? Start with Architecture Questionnaire →", key="btn_assess_questionnaire"):
             on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "questionnaire"})
 
     st.markdown("<div style='height: 36px;'></div>", unsafe_allow_html=True)
