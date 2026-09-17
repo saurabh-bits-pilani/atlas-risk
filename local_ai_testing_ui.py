@@ -12,6 +12,8 @@ Features:
 - Downloadable evidence report (.md and .json) with exact commit and model identity
 """
 
+import os
+import re
 import streamlit as st
 import json
 import urllib.request
