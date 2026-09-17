@@ -10,7 +10,7 @@ class handler(BaseHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🛡️ ATLAS-Risk v0.4.0-dev — Enterprise AI Risk Assessment</title>
+    <title>🛡️ ATLAS-Risk v0.4.0-beta — Enterprise AI Risk Assessment</title>
     <style>
         html, body {
             margin: 0;
