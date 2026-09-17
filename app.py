@@ -15,6 +15,12 @@ import os
 import json
 from datetime import datetime, timezone
 
+import importlib
+import guided_assessment_ui
+import home_view
+importlib.reload(guided_assessment_ui)
+importlib.reload(home_view)
+
 from guided_assessment_ui import render_guided_assessment_wizard
 from assessment_results_view import render_assessment_results
 from home_view import render_home_page
@@ -45,6 +51,15 @@ st.markdown("""
     /* Clean header */
     header[data-testid="stHeader"] {
         background-color: transparent !important;
+    }
+
+    /* Generous top and side padding for main content area */
+    .stMainBlockContainer,
+    div[data-testid="stMain"] > div:first-child,
+    .main .block-container {
+        padding-top: 2.2rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1160px !important;
     }
 
     /* Sidebar Background */
@@ -97,32 +112,101 @@ st.markdown("""
 
     /* Content Area Primary CTA Buttons */
     .stMainBlockContainer button[kind="primary"],
-    div[data-testid="stMain"] button[kind="primary"] {
-        background-color: #4f46e5 !important;
-        border-color: #4f46e5 !important;
+    div[data-testid="stMain"] button[kind="primary"],
+    div[data-testid="stMain"] button[data-testid="baseButton-primary"],
+    div.stButton > button[kind="primary"],
+    div.stButton > button[data-testid="baseButton-primary"] {
+        background-color: #2563eb !important;
+        border-color: #2563eb !important;
         color: #ffffff !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
         box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
     }
     .stMainBlockContainer button[kind="primary"]:hover,
-    div[data-testid="stMain"] button[kind="primary"]:hover {
-        background-color: #4338ca !important;
-        border-color: #4338ca !important;
+    div[data-testid="stMain"] button[kind="primary"]:hover,
+    div[data-testid="stMain"] button[data-testid="baseButton-primary"]:hover {
+        background-color: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+        color: #ffffff !important;
     }
 
     /* Content Area Secondary Buttons */
     .stMainBlockContainer button[kind="secondary"],
-    div[data-testid="stMain"] button[kind="secondary"] {
+    div[data-testid="stMain"] button[kind="secondary"],
+    div[data-testid="stMain"] button[data-testid="baseButton-secondary"],
+    div.stButton > button[kind="secondary"],
+    div.stButton > button[data-testid="baseButton-secondary"] {
         border-radius: 8px !important;
         font-weight: 500 !important;
         border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff !important;
         color: #334155 !important;
     }
     .stMainBlockContainer button[kind="secondary"]:hover,
-    div[data-testid="stMain"] button[kind="secondary"]:hover {
+    div[data-testid="stMain"] button[kind="secondary"]:hover,
+    div[data-testid="stMain"] button[data-testid="baseButton-secondary"]:hover {
         border-color: #94a3b8 !important;
         background-color: #f8fafc !important;
+    }
+
+    /* Step 1: Card Overlay for Direct Card Clicking */
+    div[data-testid="column"]:has(.guided-card-wrapper) {
+        position: relative !important;
+    }
+    div[data-testid="column"]:has(.guided-card-wrapper) div.stButton {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 20 !important;
+    }
+    div[data-testid="column"]:has(.guided-card-wrapper) div.stButton button {
+        width: 100% !important;
+        height: 100% !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Step 2: Change button styled as clean hyperlink */
+    div[data-testid="stButton"]:has(button[key="btn_change_target"]) button,
+    button[key="btn_change_target"] {
+        background: transparent !important;
+        border: none !important;
+        color: #2563eb !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        text-decoration: none !important;
+        box-shadow: none !important;
+        padding: 6px 10px !important;
+        cursor: pointer !important;
+        min-height: unset !important;
+        height: auto !important;
+    }
+    button[key="btn_change_target"]:hover {
+        text-decoration: underline !important;
+        color: #1d4ed8 !important;
+        background: transparent !important;
+    }
+
+    /* Step 2: Segmented AI feature toggle buttons */
+    div[data-testid="column"]:has(.ai-btn-active) button,
+    div[data-testid="column"]:has(.ai-btn-active) div.stButton button {
+        background-color: #eff6ff !important;
+        border: 2px solid #2563eb !important;
+        color: #2563eb !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="column"]:has(.ai-btn-inactive) button,
+    div[data-testid="column"]:has(.ai-btn-inactive) div.stButton button {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+        font-weight: 500 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -339,7 +423,7 @@ def main():
     if current_nav == "🏠 Home":
         render_home_page(on_navigate=navigate_to)
     elif current_nav in ("➕ New assessment", "➕ New Assessment"):
-        render_guided_assessment_wizard()
+        render_guided_assessment_wizard(on_navigate=navigate_to)
     elif current_nav in ("📄 Reports", "📑 Reports"):
         render_reports_page()
     elif current_nav in ("📊 Research & benchmarks", "🔬 Research & Benchmarks"):
