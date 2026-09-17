@@ -195,7 +195,7 @@ class TestRunner:
             )
 
             try:
-                with urllib.request.urlopen(req, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=25) as resp:
                     http_status = resp.status
                     resp_body = resp.read().decode("utf-8")
                     try:
