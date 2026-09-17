@@ -214,6 +214,19 @@ st.markdown("""
 
 def navigate_to(tab_name: str, extra_state: dict = None):
     """Smooth navigation helper ensuring instant state synchronization."""
+    if tab_name in ("➕ New assessment", "➕ New Assessment"):
+        st.session_state["current_completed_record"] = None
+        st.session_state["is_assessment_executing"] = False
+        st.session_state["stop_requested"] = False
+        if not extra_state or "wizard_step" not in extra_state:
+            st.session_state["wizard_step"] = 1
+        if "wizard_inputs" in st.session_state:
+            st.session_state["wizard_inputs"]["auth_granted"] = False
+
+    if tab_name in ("📄 Reports", "📑 Reports"):
+        if not extra_state or "opened_report_id" not in extra_state:
+            st.session_state["opened_report_id"] = None
+
     if extra_state:
         for k, v in extra_state.items():
             if k == "wizard_step":
@@ -224,6 +237,7 @@ def navigate_to(tab_name: str, extra_state: dict = None):
                 st.session_state["wizard_inputs"]["target_type"] = v
             else:
                 st.session_state[k] = v
+
     st.session_state["app_nav"] = tab_name
     st.rerun()
 
@@ -411,9 +425,7 @@ def main():
         is_active = (current_nav == target_key or (target_key == "➕ New assessment" and current_nav == "➕ New Assessment"))
         btn_type = "primary" if is_active else "secondary"
         if st.sidebar.button(label, key=f"nav_btn_{target_key}", type=btn_type, use_container_width=True):
-            if current_nav != target_key:
-                st.session_state["app_nav"] = target_key
-                st.rerun()
+            navigate_to(target_key)
 
     # Vertical spacer to push settings and help to bottom
     st.sidebar.markdown("<div style='height: 180px;'></div>", unsafe_allow_html=True)
@@ -428,9 +440,7 @@ def main():
         is_active = (current_nav == target_key)
         btn_type = "primary" if is_active else "secondary"
         if st.sidebar.button(label, key=f"nav_btn_{target_key}", type=btn_type, use_container_width=True):
-            if current_nav != target_key:
-                st.session_state["app_nav"] = target_key
-                st.rerun()
+            navigate_to(target_key)
 
     st.sidebar.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
     st.sidebar.caption("ATLAS-Risk Platform • Build `64b7438`")

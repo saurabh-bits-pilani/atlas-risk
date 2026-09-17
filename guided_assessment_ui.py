@@ -131,7 +131,13 @@ def render_guided_assessment_wizard(on_navigate=None):
     if "stop_requested" not in st.session_state:
         st.session_state.stop_requested = False
 
-    if st.session_state.current_completed_record is not None:
+    curr_step = st.session_state.wizard_step
+
+    # When starting fresh or on Steps 1-3, do not render old completed reports
+    if curr_step < 4:
+        st.session_state.current_completed_record = None
+
+    if curr_step == 4 and st.session_state.current_completed_record is not None:
         render_step_tracker(4)
         render_assessment_results(st.session_state.current_completed_record)
         st.markdown("---")
@@ -142,7 +148,6 @@ def render_guided_assessment_wizard(on_navigate=None):
             st.rerun()
         return
 
-    curr_step = st.session_state.wizard_step
     render_step_tracker(curr_step)
 
     if curr_step == 1:

@@ -109,7 +109,7 @@ def render_home_page(on_navigate: Callable[[str, Any], None]):
         )
         st.markdown(card1_html, unsafe_allow_html=True)
         if st.button("Select Website or SaaS →", key="btn_assess_web", use_container_width=True):
-            on_navigate("➕ New assessment", {"wizard_step": 1, "target_type": "website"})
+            on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "website"})
 
     with c_card2:
         card2_html = (
@@ -121,7 +121,7 @@ def render_home_page(on_navigate: Callable[[str, Any], None]):
         )
         st.markdown(card2_html, unsafe_allow_html=True)
         if st.button("Select GitHub project →", key="btn_assess_github", use_container_width=True):
-            on_navigate("➕ New assessment", {"wizard_step": 1, "target_type": "github"})
+            on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "github"})
 
     with c_card3:
         card3_html = (
@@ -133,13 +133,13 @@ def render_home_page(on_navigate: Callable[[str, Any], None]):
         )
         st.markdown(card3_html, unsafe_allow_html=True)
         if st.button("Select AI chatbot →", key="btn_assess_chatbot", use_container_width=True):
-            on_navigate("➕ New assessment", {"wizard_step": 1, "target_type": "chatbot"})
+            on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "chatbot"})
 
     st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
     c_q_link, c_q_space = st.columns([2.5, 3])
     with c_q_link:
         if st.button("No connection? Start with a questionnaire →", key="btn_assess_questionnaire"):
-            on_navigate("➕ New assessment", {"wizard_step": 1, "target_type": "questionnaire"})
+            on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "questionnaire"})
 
     st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True)
 
