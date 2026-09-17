@@ -234,6 +234,12 @@ def render_step_1(on_navigate=None):
         "questionnaire": "📋 Architecture Questionnaire"
     }
 
+    def on_target_radio_change():
+        chosen = st.session_state.get("target_radio_horizontal")
+        if chosen:
+            st.session_state.wizard_inputs["target_type"] = chosen
+            st.session_state.wizard_step = 2
+
     curr_target = inp.get("target_type", "website")
     if curr_target not in target_keys:
         curr_target = "website"
@@ -246,10 +252,12 @@ def render_step_1(on_navigate=None):
         format_func=lambda k: target_radio_labels[k],
         horizontal=True,
         key="target_radio_horizontal",
+        on_change=on_target_radio_change,
         label_visibility="collapsed"
     )
     if sel_radio != inp.get("target_type"):
         inp["target_type"] = sel_radio
+        st.session_state.wizard_step = 2
         st.rerun()
 
     st.markdown("<div style='margin-top: 16px;'></div>", unsafe_allow_html=True)
@@ -277,10 +285,11 @@ def render_step_1(on_navigate=None):
             card_html = f"""<div class="guided-card-wrapper" style="border: {border_style}; background-color: {bg_style}; border-radius: 12px; padding: 18px; margin-bottom: 8px; min-height: 140px; transition: all 0.15s ease-in-out;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;"><div>{cicon}</div><div>{radio_svg}</div></div><div style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">{ctitle}</div><div style="font-size: 13.5px; color: #334155; margin-bottom: 4px;">{cdesc}</div><div style="font-size: 12.5px; color: #64748b;">{cexample}</div></div>"""
             st.markdown(card_html, unsafe_allow_html=True)
 
-            btn_label = "🔘 Selected" if is_selected else f"⚪ Choose {ctitle}"
+            btn_label = f"👉 Continue with {ctitle} →" if is_selected else f"Select {ctitle} →"
             btn_type = "primary" if is_selected else "secondary"
             if st.button(btn_label, key=f"sel_card_{ctype}", use_container_width=True, type=btn_type):
                 inp["target_type"] = ctype
+                st.session_state.wizard_step = 2
                 st.rerun()
 
     st.markdown("<div style='margin-top: 18px;'></div>", unsafe_allow_html=True)
@@ -305,7 +314,7 @@ def render_step_1(on_navigate=None):
                 st.session_state["app_nav"] = "🏠 Home"
                 st.rerun()
     with col_c:
-        if st.button("Continue →", type="primary", key="btn_step1_continue", use_container_width=True):
+        if st.button("Continue to Step 2 →", type="primary", key="btn_step1_continue", use_container_width=True):
             st.session_state.wizard_step = 2
             st.rerun()
 
