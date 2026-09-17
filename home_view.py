@@ -150,7 +150,7 @@ def render_home_page(on_navigate: Callable[[str, Any], None]):
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     c_q_link, c_q_space = st.columns([3.5, 2.5])
     with c_q_link:
-        if st.button("📋 Early stage? Start with Architecture Questionnaire →", key="btn_assess_questionnaire"):
+        if st.button("📋 No connection? Start with Architecture Questionnaire →", key="btn_assess_questionnaire"):
             on_navigate("➕ New assessment", {"wizard_step": 2, "target_type": "questionnaire"})
 
     st.markdown("<div style='height: 36px;'></div>", unsafe_allow_html=True)

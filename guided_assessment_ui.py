@@ -1,9 +1,9 @@
 """
 Guided Assessment UI Module for ATLAS-Risk.
-Implements the 4-step wizard matching the exact visual designs in Screen 2 and Screen 3:
+Implements the 4-step wizard matching the exact visual designs:
 Step 1: What would you like to check? (Interactive radio buttons & responsive target cards)
-Step 2: Tell us about your app (Two-column layout, selection badge with Change link, "What happens next?" card)
-Step 3: Review the checks & scope (Honest boundaries, permission checkbox)
+Step 2: Tell us about your app (Dedicated forms for Website, GitHub, Chatbot, Local AI, and full Architecture Questionnaire)
+Step 3: Review the checks & scope (Honest boundaries customized per target type, authorization gate)
 Step 4: Run and view results (with real activity indicator, Stop button, and authentic telemetry)
 """
 
@@ -122,10 +122,19 @@ def render_guided_assessment_wizard(on_navigate=None):
             "chatbot_token": "",
             "app_name": "",
             "app_purpose": "",
+            "business_impact": "Medium",
+            "deployment_scope": "Public Web Interface",
+            "model_provider": "Cloud API (e.g. OpenAI / Anthropic / Google)",
+            "q2_system_prompt": "Yes",
+            "uses_rag": "No",
+            "rag_untrusted": "N/A - No RAG",
+            "sensitive_data": "Low / None - Public data only",
+            "has_tools": "No tool execution - Pure chat/text generation",
+            "human_in_loop": "N/A - No write tools",
+            "guardrails": ["System Prompt Fencing & Delimiters"],
+            "audit_logging": "Yes",
             "has_ai_feature": "Not sure",
             "has_rag": "I don't know",
-            "has_tools": "No",
-            "sensitive_data": "None",
             "crawl_depth": 3,
             "model": "llama3.2:1b",
             "variant": "Baseline (Unprotected)",
@@ -250,7 +259,7 @@ def render_step_1(on_navigate=None):
         ("github", "GitHub project", "Review repository code, dependencies, and hygiene.", "For example: an app built with AI or open repo", SVG_GITHUB),
         ("chatbot", "AI chatbot (Cloud / API)", "Test conversational assistants, webhooks, and boundary defense.", "For example: customer support bot or API webhook", SVG_CHAT),
         ("local_model", "Local AI model (Ollama)", "Audit locally running models via port 8080 or ngrok tunnel.", "For example: Ollama running llama3.2:1b on your laptop", SVG_OLLAMA),
-        ("questionnaire", "Architecture Questionnaire", "Understand architectural risks without connecting a live server.", "Useful during early design or when you don't have access", SVG_DOC),
+        ("questionnaire", "Architecture Questionnaire", "Understand architectural risks without connecting a live server.", "Useful during early design or when you don't have access yet", SVG_DOC),
     ]
 
     r1_cols = st.columns(3)
@@ -281,7 +290,7 @@ def render_step_1(on_navigate=None):
         <div style="font-size: 20px; color: #2563eb; line-height: 1;">ℹ️</div>
         <div>
             <div style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">For this selection</div>
-            <div style="font-size: 14px; color: #475569; line-height: 1.5;">We'll review accessible pages or interfaces and clearly list anything we cannot check.<br>Deeper testing requires your permission and suitable access.</div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.5;">We'll review accessible surfaces or architecture designs and clearly list anything we cannot check.<br>Deeper testing requires your permission and suitable access.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -319,11 +328,14 @@ def render_step_2(on_navigate=None):
                 st.session_state["app_nav"] = "🏠 Home"
                 st.rerun()
 
-    st.markdown("""
+    header_title = "Architecture Security Questionnaire" if target_type == "questionnaire" else "Tell us about your app"
+    header_subtitle = "Answer key architectural questions to profile threat risks across OWASP LLM and MITRE ATLAS." if target_type == "questionnaire" else "Provide target details. You can add more context if you have it."
+
+    st.markdown(f"""
     <div style="margin-bottom: 20px; margin-top: 10px;">
         <div style="font-size: 12px; font-weight: 700; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;">STEP 2 OF 4</div>
-        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">Tell us about your app</h1>
-        <p style="font-size: 16px; color: #475569; margin: 0;">Provide target details. You can add more context if you have it.</p>
+        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">{header_title}</h1>
+        <p style="font-size: 16px; color: #475569; margin: 0;">{header_subtitle}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -337,7 +349,7 @@ def render_step_2(on_navigate=None):
     sel_label = target_labels.get(target_type, "🌐 Website or SaaS app")
 
     # Selection pill and Change link neatly aligned
-    col_pill, col_chg, col_fill = st.columns([3.6, 1.4, 7.0])
+    col_pill, col_chg, col_fill = st.columns([3.8, 1.4, 6.8])
     with col_pill:
         st.markdown(f"""<div style="display: inline-flex; align-items: center; padding: 6px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 14px; font-weight: 600; color: #0f172a;">{sel_label}</div>""", unsafe_allow_html=True)
     with col_chg:
@@ -538,13 +550,81 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                     st.rerun()
 
         else:
-            st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Architecture Questionnaire Scope</div>", unsafe_allow_html=True)
-            st.info("Questionnaire mode requires no live server. We will evaluate your architectural threat model across OWASP Top 10 for LLM and MITRE ATLAS.")
+            # Full Interactive Architecture Security Questionnaire
+            st.markdown("""
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
+                <span style="font-size: 13.5px; color: #166534; font-weight: 600;">📋 Complete the 5 questionnaire sections below to evaluate your architecture threat model.</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-            inp["app_name"] = st.text_input("System / Application Name", value=inp.get("app_name", ""), placeholder="e.g. Enterprise AI Assistant")
-            inp["deployment_scope"] = st.selectbox("Deployment Exposure", ["Public Web Interface", "Authenticated Internal Users", "Isolated Sandbox/Testing"])
-            inp["uses_rag"] = st.selectbox("Does the application use Retrieval-Augmented Generation (RAG)?", ["Yes", "No", "Planned"])
-            inp["has_tools"] = st.selectbox("Does the LLM have tool-calling or autonomous agent capabilities?", ["Yes", "No", "Read-only tools"])
+            # Section 1: Application Context
+            with st.expander("🏢 1. Application & Business Context", expanded=True):
+                inp["app_name"] = st.text_input("Application / System Name *", value=inp.get("app_name", ""), placeholder="e.g. Enterprise Customer Support AI")
+                inp["app_purpose"] = st.text_area("What does this AI application do? *", value=inp.get("app_purpose", ""), placeholder="e.g. Answers customer billing queries, looks up account records, and drafts email responses.", height=70)
+                imp_opts = ["High / Critical (Processes financial or sensitive customer data)", "Medium (Internal operational assistant)", "Low (Non-critical demo or prototype)"]
+                curr_imp = inp.get("business_impact", imp_opts[1])
+                imp_idx = imp_opts.index(curr_imp) if curr_imp in imp_opts else 1
+                inp["business_impact"] = st.selectbox("Business Impact Level (if compromised)", imp_opts, index=imp_idx)
+
+            # Section 2: Deployment Exposure & Model
+            with st.expander("🌐 2. Deployment Exposure & Model Architecture", expanded=True):
+                exp_opts = ["Public Web Interface (Open to anonymous internet users)", "Authenticated Internal Users (Requires login / VPN)", "Isolated Sandbox / Testing (Developer only)"]
+                curr_exp = inp.get("deployment_scope", exp_opts[0])
+                exp_idx = exp_opts.index(curr_exp) if curr_exp in exp_opts else 0
+                inp["deployment_scope"] = st.selectbox("Deployment Exposure Level *", exp_opts, index=exp_idx)
+
+                prov_opts = ["Cloud API (e.g. OpenAI / Anthropic / Google Gemini)", "Self-Hosted Open Source (Ollama / vLLM / vLLM-cluster)", "Fine-Tuned Proprietary Model", "Third-Party SaaS Assistant"]
+                curr_prov = inp.get("model_provider", prov_opts[0])
+                prov_idx = prov_opts.index(curr_prov) if curr_prov in prov_opts else 0
+                inp["model_provider"] = st.selectbox("Primary Model Provider / Runtime", prov_opts, index=prov_idx)
+
+                inp["q2_system_prompt"] = st.radio("Does the application rely on confidential developer System Instructions?", ["Yes", "No"], index=0 if inp.get("q2_system_prompt", "Yes") == "Yes" else 1, horizontal=True)
+
+            # Section 3: Data Ingestion & RAG Knowledge Store
+            with st.expander("📚 3. Knowledge Base & Document Ingestion (RAG)", expanded=True):
+                rag_opts = ["Yes - Retrieves external documents into prompt context", "No - Pure base model inference", "Planned - Under development"]
+                curr_rag = inp.get("uses_rag", rag_opts[0])
+                rag_idx = rag_opts.index(curr_rag) if curr_rag in rag_opts else 0
+                inp["uses_rag"] = st.selectbox("Does the application use Retrieval-Augmented Generation (RAG)? *", rag_opts, index=rag_idx)
+
+                if "Yes" in inp["uses_rag"]:
+                    untr_opts = ["Ingests unvetted user file uploads or third-party web URLs", "Curated internal corporate documents only", "Strict document-level RBAC enforced"]
+                    curr_untr = inp.get("rag_untrusted", untr_opts[0])
+                    untr_idx = untr_opts.index(curr_untr) if curr_untr in untr_opts else 0
+                    inp["rag_untrusted"] = st.selectbox("Document Source & Trust Boundary", untr_opts, index=untr_idx)
+
+                sens_opts = ["High - Processes credentials, passwords, or customer PII", "Medium - Processes internal non-public company documents", "Low / None - Public data only"]
+                curr_sens = inp.get("sensitive_data", sens_opts[0])
+                sens_idx = sens_opts.index(curr_sens) if curr_sens in sens_opts else 0
+                inp["sensitive_data"] = st.selectbox("Data Sensitivity Level in Context Window", sens_opts, index=sens_idx)
+
+            # Section 4: Autonomous Agency & Tools
+            with st.expander("🤖 4. Autonomous Agency & Tool Calling", expanded=True):
+                tool_opts = ["Write/Execute - Can modify databases, invoke external APIs, or execute code", "Read-only - Can only query knowledge bases or lookup records", "No tool execution - Pure chat/text generation"]
+                curr_tool = inp.get("has_tools", tool_opts[1])
+                tool_idx = tool_opts.index(curr_tool) if curr_tool in tool_opts else 1
+                inp["has_tools"] = st.selectbox("Tool / Function Calling Capabilities *", tool_opts, index=tool_idx)
+
+                if "Write/Execute" in inp["has_tools"]:
+                    hil_opts = ["Yes - Human approval required before sensitive changes", "No - Model executes autonomously without human confirmation"]
+                    curr_hil = inp.get("human_in_loop", hil_opts[0])
+                    hil_idx = hil_opts.index(curr_hil) if curr_hil in hil_opts else 0
+                    inp["human_in_loop"] = st.selectbox("Human-in-the-Loop Confirmation Gate", hil_opts, index=hil_idx)
+                else:
+                    inp["human_in_loop"] = "N/A - No write tools"
+
+            # Section 5: Security Defenses & Guardrails
+            with st.expander("🛡️ 5. Active Security Guardrails & Audit Logging", expanded=True):
+                all_guards = [
+                    "System Prompt Fencing & Delimiters",
+                    "Input Content Filter / Regex",
+                    "Output Policy Scanner / Secret Redaction",
+                    "Rate Limiting & Abuse Throttling"
+                ]
+                curr_guards = inp.get("guardrails", ["System Prompt Fencing & Delimiters"])
+                inp["guardrails"] = st.multiselect("Declared Active Defense Guardrails", all_guards, default=curr_guards)
+
+                inp["audit_logging"] = st.radio("Are full prompt and response logs retained for security audit?", ["Yes", "No"], index=0 if inp.get("audit_logging", "Yes") == "Yes" else 1, horizontal=True)
 
     with col_right:
         if target_type == "website":
@@ -577,11 +657,12 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
             lock_note = "🔒 Zero requests dispatched without permission."
         else:
             card_items = [
-                ("📋", "We evaluate architectural threat questions."),
-                ("🔍", "We map gaps to OWASP and MITRE standards."),
-                ("👥", "You receive actionable recommendations.")
+                ("📋", "We evaluate your answers across OWASP Top 10 for LLMs."),
+                ("🛡️", "We map threat vectors to MITRE ATLAS adversarial matrix."),
+                ("🔍", "We identify architectural control gaps & fixes."),
+                ("📄", "You receive a publication-ready risk audit report.")
             ]
-            lock_note = "🔒 Safe offline analysis without credentials."
+            lock_note = "🔒 Safe offline review. Zero network packets dispatched."
 
         rows_str = "".join([f'<div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;"><span style="font-size:18px;">{icon}</span><span style="font-size:14px; color:#334155; line-height:1.4;">{text}</span></div>' for icon, text in card_items])
         card_container_html = f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:22px; margin-bottom:12px;"><div style="font-size:16px; font-weight:700; color:#0f172a; margin-bottom:16px;">What happens next?</div>{rows_str}</div><div style="font-size:13px; color:#64748b; display:flex; align-items:center; gap:6px; padding-left:4px;">{lock_note}</div>'
@@ -589,12 +670,20 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
 
     st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
-        <span style="font-size: 18px; color: #2563eb;">ℹ️</span>
-        <span style="font-size: 14px; color: #1e40af; font-weight: 500;">Protected endpoints or pages stay untested unless you provide suitable access later.</span>
-    </div>
-    """, unsafe_allow_html=True)
+    if target_type == "questionnaire":
+        st.markdown("""
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
+            <span style="font-size: 18px; color: #16a34a;">🛡️</span>
+            <span style="font-size: 14px; color: #166534; font-weight: 500;">Offline Assessment: Your answers are evaluated against deterministic OWASP LLM and MITRE ATLAS matrices without external network access.</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
+            <span style="font-size: 18px; color: #2563eb;">ℹ️</span>
+            <span style="font-size: 14px; color: #1e40af; font-weight: 500;">Protected endpoints or pages stay untested unless you provide suitable access later.</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
     col_b, col_sp, col_n = st.columns([2, 5, 2])
@@ -603,7 +692,8 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
             st.session_state.wizard_step = 1
             st.rerun()
     with col_n:
-        if st.button("Review checks →", type="primary", key="btn_step2_next", use_container_width=True):
+        next_label = "Review threat scope →" if target_type == "questionnaire" else "Review checks →"
+        if st.button(next_label, type="primary", key="btn_step2_next", use_container_width=True):
             st.session_state.wizard_step = 3
             st.rerun()
 
@@ -626,28 +716,57 @@ def render_step_3(on_navigate=None):
                 st.session_state["app_nav"] = "🏠 Home"
                 st.rerun()
 
-    st.markdown("""
+    step3_title = "Review Architecture Profile & Threat Scope" if target_type == "questionnaire" else "Review the checks & permission"
+    step3_desc = "Review your declared system boundaries and the OWASP/MITRE threat coverage to be assessed." if target_type == "questionnaire" else "Before starting, review the exact scope boundaries of this assessment."
+
+    st.markdown(f"""
     <div style="margin-bottom: 20px; margin-top: 10px;">
         <div style="font-size: 12px; font-weight: 700; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;">STEP 3 OF 4</div>
-        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">Review the checks & permission</h1>
-        <p style="font-size: 16px; color: #475569; margin: 0;">Before starting, review the exact scope boundaries of this assessment.</p>
+        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">{step3_title}</h1>
+        <p style="font-size: 16px; color: #475569; margin: 0;">{step3_desc}</p>
     </div>
     """, unsafe_allow_html=True)
+
+    # For Questionnaire: Display Profile Summary Card
+    if target_type == "questionnaire":
+        app_name_disp = inp.get("app_name", "").strip() or "Unnamed AI Assistant"
+        purpose_disp = inp.get("app_purpose", "").strip() or "Operational assistant"
+        exp_disp = inp.get("deployment_scope", "Public Web Interface").split(" (")[0]
+        rag_disp = "Active" if "Yes" in inp.get("uses_rag", "") else "None"
+        tools_disp = "Write/Execute" if "Write" in inp.get("has_tools", "") else ("Read-only" if "Read" in inp.get("has_tools", "") else "None")
+        guards_disp = ", ".join(inp.get("guardrails", [])) or "None declared"
+
+        st.markdown(f"""
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">📊 Declared System Architecture Profile</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13.5px;">
+                <div><span style="color: #64748b;">System Name:</span> <strong style="color: #0f172a;">{app_name_disp}</strong></div>
+                <div><span style="color: #64748b;">Exposure Boundary:</span> <strong style="color: #0f172a;">{exp_disp}</strong></div>
+                <div><span style="color: #64748b;">RAG Knowledge Store:</span> <strong style="color: #0f172a;">{rag_disp}</strong></div>
+                <div><span style="color: #64748b;">Autonomous Tools:</span> <strong style="color: #0f172a;">{tools_disp}</strong></div>
+                <div style="grid-column: span 2;"><span style="color: #64748b;">Active Defenses:</span> <strong style="color: #2563eb;">{guards_disp}</strong></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
     with col1:
         if target_type == "website":
+            checked_title = "🟢 We will check:"
             checked_items = "<li>Accessible public pages (up to 3)</li><li>Visible elements & layout usability</li><li>HTML accessibility (lang, alt tags, viewport)</li><li>Response latency & TTFB</li><li>Public security headers (CSP, HSTS)</li><li>Published pricing signals</li>"
         elif target_type == "github":
+            checked_title = "🟢 We will check:"
             checked_items = "<li>Public repository metadata & branches</li><li>Licensing declaration (`LICENSE`)</li><li>Vulnerability disclosure policy (`SECURITY.md`)</li><li>Documentation & repository posture</li><li>Dependency hygiene indicators</li>"
         elif target_type in ("chatbot", "local_model"):
+            checked_title = "🟢 We will check:"
             checked_items = "<li>Direct prompt injection resistance</li><li>System prompt disclosure defense</li><li>Boundary adherence under roleplay probes</li><li>Inference latency & token telemetry</li><li>Baseline vs Hardened guardrail delta</li>"
         else:
-            checked_items = "<li>OWASP Top 10 for LLM threat alignment</li><li>MITRE ATLAS adversarial technique mapping</li><li>Deployment boundary exposure</li><li>Autonomous tool & RAG data governance</li>"
+            checked_title = "🟢 We will evaluate:"
+            checked_items = "<li>OWASP LLM01: Prompt Injection exposure</li><li>OWASP LLM02: Sensitive data disclosure risk</li><li>OWASP LLM04/08: RAG document poisoning vectors</li><li>OWASP LLM06: Excessive agency & autonomous tool risks</li><li>MITRE ATLAS v4.0 Adversarial Techniques</li><li>Prioritized defense-in-depth remediation fixes</li>"
 
         st.markdown(f"""
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; min-height: 220px;">
-            <div style="font-size: 15px; font-weight: 700; color: #16a34a; margin-bottom: 10px;">🟢 We will check:</div>
+            <div style="font-size: 15px; font-weight: 700; color: #16a34a; margin-bottom: 10px;">{checked_title}</div>
             <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.6;">
                 {checked_items}
             </ul>
@@ -655,41 +774,70 @@ def render_step_3(on_navigate=None):
         """, unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""
+        if target_type == "questionnaire":
+            cannot_title = "🟡 Cannot verify dynamically:"
+            cannot_items = "<li>Live runtime prompt injection bypasses</li><li>Dynamic API payload exploits</li><li>Container escape or kernel vulnerabilities</li><li>Private database SQL injection</li>"
+        elif target_type == "github":
+            cannot_title = "🟡 We cannot check yet:"
+            cannot_items = "<li>Private commit history & git objects</li><li>Private GitHub Secrets & tokens</li><li>Organization branch protection rules</li><li>Private dependency security</li>"
+        elif target_type in ("chatbot", "local_model"):
+            cannot_title = "🟡 We cannot check yet:"
+            cannot_items = "<li>Underlying model weights & training data</li><li>Internal vector database contents</li><li>Cloud infrastructure IAM roles</li><li>Private backend database queries</li>"
+        else:
+            cannot_title = "🟡 We cannot check yet:"
+            cannot_items = "<li>Protected / login-required dashboards</li><li>Private database security & internal code</li><li>Private API endpoints & session tokens</li><li>Cloud IAM roles & VPC security rules</li>"
+
+        st.markdown(f"""
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; min-height: 220px;">
-            <div style="font-size: 15px; font-weight: 700; color: #d97706; margin-bottom: 10px;">🟡 We cannot check yet:</div>
+            <div style="font-size: 15px; font-weight: 700; color: #d97706; margin-bottom: 10px;">{cannot_title}</div>
             <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.6;">
-                <li>Protected / login-required dashboards</li>
-                <li>Private database security & internal code</li>
-                <li>Private API endpoints & session tokens</li>
-                <li>Cloud IAM roles & VPC security rules</li>
+                {cannot_items}
             </ul>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
-        st.markdown("""
+        if target_type == "questionnaire":
+            access_title = "🔐 To unlock dynamic tests:"
+            access_items = "<li>Connect public URL for website review</li><li>Connect local Ollama Gateway (port 8080)</li><li>Connect chatbot API webhook</li><li>Provide read-only GitHub repo link</li>"
+        elif target_type == "github":
+            access_title = "🔐 Access needed for deeper checks:"
+            access_items = "<li>Read-only GitHub repo access token (PAT)</li><li>GitHub App OAuth integration</li><li>Branch admin permissions</li>"
+        elif target_type in ("chatbot", "local_model"):
+            access_title = "🔐 Access needed for deeper checks:"
+            access_items = "<li>Authorized API bearer token</li><li>Active Ollama Security Gateway</li><li>Extended token generation window</li>"
+        else:
+            access_title = "🔐 Access needed for deeper checks:"
+            access_items = "<li>Test account credentials for private pages</li><li>Authorized API keys or session tokens</li><li>Read-only GitHub repo access token</li><li>Cloud security audit role</li>"
+
+        st.markdown(f"""
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; min-height: 220px;">
-            <div style="font-size: 15px; font-weight: 700; color: #4f46e5; margin-bottom: 10px;">🔐 Access needed for deeper checks:</div>
+            <div style="font-size: 15px; font-weight: 700; color: #4f46e5; margin-bottom: 10px;">{access_title}</div>
             <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.6;">
-                <li>Test account credentials for private pages</li>
-                <li>Authorized API keys or session tokens</li>
-                <li>Read-only GitHub repo access token</li>
-                <li>Cloud security audit role</li>
+                {access_items}
             </ul>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top: 18px;'></div>", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">
-        <span style="font-size: 14px; color: #1e40af; line-height: 1.5;">
-            <strong>ℹ️ Access Boundary Notice:</strong> An authentication barrier (HTTP 401/403 or login screen) may limit this review. 
-            <strong>It does not mean the app has a security vulnerability.</strong> We will inspect all accessible areas, document what works, and clearly list unassessed sections.
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    if target_type == "questionnaire":
+        st.markdown("""
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">
+            <span style="font-size: 14px; color: #166534; line-height: 1.5;">
+                <strong>ℹ️ Architecture Analysis Notice:</strong> This review evaluates design principles, control boundaries, and declared safeguards against the official <strong>OWASP Top 10 for LLM (2025)</strong> and <strong>MITRE ATLAS v4.0</strong> standards without sending live network attacks.
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">
+            <span style="font-size: 14px; color: #1e40af; line-height: 1.5;">
+                <strong>ℹ️ Access Boundary Notice:</strong> An authentication barrier (HTTP 401/403 or login screen) may limit this review. 
+                <strong>It does not mean the app has a security vulnerability.</strong> We will inspect all accessible areas, document what works, and clearly list unassessed sections.
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
 
     if target_type == "website":
         target_spec = inp.get("url", "website")
@@ -698,27 +846,31 @@ def render_step_3(on_navigate=None):
     elif target_type == "chatbot":
         target_spec = inp.get("chatbot_url", "chatbot endpoint")
     elif target_type == "local_model":
-        target_spec = f"{inp.get('url', OLLAMA_GATEWAY_URL)} [{inp.get('model', 'llama3.2:1b')}]"
+        target_spec = f"{inp.get('url', OLLAMA_GATEWAY_URL)} [{inp.get('model', 'llama3.2:1b')}] ({inp.get('variant', 'Baseline')})"
     else:
-        target_spec = inp.get("app_name", "Architecture Profile")
+        target_spec = inp.get("app_name", "").strip() or "Declared System Architecture"
 
-    st.markdown("<div style='font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 8px;'>Authorization & Scope Verification</div>", unsafe_allow_html=True)
+    auth_label = f"🔒 Confirm architectural risk assessment for `{target_spec}`." if target_type == "questionnaire" else f"🔒 I explicitly authorize ATLAS-Risk to perform this assessment against `{target_spec}`."
+
+    st.markdown("<div style='font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 8px;'>Assessment Confirmation & Scope</div>", unsafe_allow_html=True)
     auth_cb = st.checkbox(
-        f"🔒 I explicitly authorize ATLAS-Risk to perform this assessment against `{target_spec}`.",
-        value=inp.get("auth_granted", False),
-        help="Zero requests are dispatched before explicit authorization."
+        auth_label,
+        value=inp.get("auth_granted", True if target_type == "questionnaire" else False),
+        key=f"auth_cb_{target_type}",
+        help="Zero requests are dispatched before explicit confirmation."
     )
     inp["auth_granted"] = auth_cb
 
     st.markdown("---")
-    col_b, col_sp, col_s = st.columns([2, 5, 2.5])
+    col_b, col_sp, col_s = st.columns([2, 4.5, 3.5])
     with col_b:
         if st.button("← Back to Step 2", key="btn_step3_back", use_container_width=True):
             st.session_state.wizard_step = 2
             st.rerun()
     with col_s:
         can_start = inp.get("auth_granted", False)
-        if st.button("🚀 Start assessment", type="primary", disabled=not can_start, key="btn_step3_start", use_container_width=True):
+        start_button_label = "📊 Generate Architecture Audit Report →" if target_type == "questionnaire" else "🚀 Start assessment"
+        if st.button(start_button_label, type="primary", disabled=not can_start, key="btn_step3_start", use_container_width=True):
             st.session_state.wizard_step = 4
             st.session_state.is_assessment_executing = True
             st.session_state.stop_requested = False
@@ -744,11 +896,14 @@ def render_step_4(on_navigate=None):
                 st.session_state["app_nav"] = "🏠 Home"
                 st.rerun()
 
-    st.markdown("""
+    exec_title = "Evaluating Architecture Threat Model..." if target_type == "questionnaire" else "Running assessment..."
+    exec_desc = "Mapping declared architecture against OWASP Top 10 for LLM and MITRE ATLAS matrices." if target_type == "questionnaire" else "Inspecting accessible surfaces with honest, evidence-based telemetry."
+
+    st.markdown(f"""
     <div style="margin-bottom: 20px; margin-top: 10px;">
         <div style="font-size: 12px; font-weight: 700; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;">STEP 4 OF 4</div>
-        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">Running assessment...</h1>
-        <p style="font-size: 16px; color: #475569; margin: 0;">Inspecting accessible surfaces with honest, evidence-based telemetry.</p>
+        <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">{exec_title}</h1>
+        <p style="font-size: 16px; color: #475569; margin: 0;">{exec_desc}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1261,88 +1416,188 @@ def inspect_chatbot_endpoint(chatbot_url: str, chatbot_type: str, token: str = "
 def evaluate_questionnaire_inputs(inp: dict) -> dict:
     """Evaluates architectural questionnaire answers against OWASP Top 10 for LLMs and MITRE ATLAS."""
     store = AssessmentStore()
-    app_name = inp.get("app_name", "Enterprise System Profile")
-    if not app_name.strip():
-        app_name = "Enterprise AI Architecture"
+    app_name = inp.get("app_name", "").strip() or "AI Application Architecture"
+    purpose = inp.get("app_purpose", "").strip() or "General operational assistant"
+    impact = inp.get("business_impact", "Medium")
     exposure = inp.get("deployment_scope", "Public Web Interface")
+    model_prov = inp.get("model_provider", "Cloud API (e.g. OpenAI / Anthropic / Google)")
+    has_sys_prompt = inp.get("q2_system_prompt", "Yes")
     uses_rag = inp.get("uses_rag", "No")
-    has_tools = inp.get("has_tools", "No")
+    rag_untrusted = inp.get("rag_untrusted", "N/A - No RAG")
+    sens_data = inp.get("sensitive_data", "Low / None - Public data only")
+    tool_calling = inp.get("has_tools", "No tool execution - Pure chat/text generation")
+    human_in_loop = inp.get("human_in_loop", "N/A - No write tools")
+    guardrails = inp.get("guardrails", [])
+    audit_logging = inp.get("audit_logging", "No")
 
     findings = []
     positive_obs = []
     unassessed = []
 
+    # 1. Scope and Context Observation
     positive_obs.append({
         "domain": "Architecture Profiling",
-        "summary": f"Scope boundary declared: {exposure}",
-        "evidence": f"System '{app_name}' evaluated under declared operational boundary."
+        "summary": f"System Profile declared for '{app_name}'",
+        "evidence": f"Purpose: {purpose} | Exposure: {exposure} | Business Impact: {impact}"
     })
 
-    if exposure == "Public Web Interface":
-        findings.append({
-            "domain": "OWASP LLM01: Prompt Injection",
-            "severity": "HIGH",
-            "title": "Public LLM Interface Requires Robust Input Guardrails",
-            "observed": "Application is exposed to untrusted public web users without isolated network perimeter.",
-            "why_it_matters": "Direct untrusted user inputs can attempt system prompt extraction or goal hijacking.",
-            "evidence": f"Deployment Exposure set to '{exposure}'",
-            "action": "Implement dual-perimeter guardrails: input content filtering and post-generation policy evaluation.",
-            "how_to_verify": "Audit red-teaming test cases against published boundary defense rules."
-        })
-
-    if uses_rag == "Yes":
-        findings.append({
-            "domain": "OWASP LLM04: Model Denial of Service & Context Manipulation",
-            "severity": "MEDIUM",
-            "title": "RAG Document Ingestion & Chunking Governance",
-            "observed": "System utilizes Retrieval-Augmented Generation (RAG) knowledge stores.",
-            "why_it_matters": "Poisoned or unvetted external documents can introduce indirect prompt injections into the context window.",
-            "evidence": f"Uses RAG set to '{uses_rag}'",
-            "action": "Sanitize and validate all ingested knowledge chunks; isolate system instructions from retrieved chunk context.",
-            "how_to_verify": "Perform adversarial injection testing on retrieved chunk embeddings."
-        })
+    # 2. Exposure & Prompt Injection Evaluation (OWASP LLM01 / MITRE AML.T0051)
+    if "Public" in exposure:
+        has_input_filter = any("Input" in g or "Fencing" in g for g in guardrails)
+        if not has_input_filter:
+            findings.append({
+                "domain": "OWASP LLM01: Prompt Injection",
+                "severity": "HIGH",
+                "title": "Unfiltered Public Surface Vulnerable to Direct Prompt Injection",
+                "observed": "Application is exposed to public unauthenticated users without active input filtering or system prompt fencing.",
+                "why_it_matters": "Malicious users can submit adversarial prompts (jailbreaks, roleplay bypasses) to override developer instructions or extract confidential prompt logic.",
+                "evidence": f"Deployment Exposure set to '{exposure}' with zero input guardrails declared.",
+                "action": "Implement dual-perimeter defense: (1) System prompt fencing with unique random delimiters, and (2) Input content filtering to intercept common jailbreak patterns.",
+                "how_to_verify": "Conduct red-team penetration probes using adversarial prompt suites (e.g. ATLAS-Risk probe catalog)."
+            })
+        else:
+            positive_obs.append({
+                "domain": "OWASP LLM01: Prompt Injection",
+                "summary": "Prompt injection defenses declared for public surface",
+                "evidence": f"Active defenses: {', '.join([g for g in guardrails if 'Input' in g or 'Fencing' in g])}"
+            })
     else:
         positive_obs.append({
-            "domain": "Knowledge Boundary",
-            "summary": "No external RAG ingestion risk",
-            "evidence": "Model relies solely on base weights or static prompt instructions."
+            "domain": "Perimeter Isolation",
+            "summary": f"Target surface isolated from public internet ({exposure})",
+            "evidence": "Restricted network boundary reduces exposure to anonymous adversarial probes."
         })
 
-    if has_tools == "Yes":
-        findings.append({
-            "domain": "OWASP LLM06: Excessive Agency & Tool Execution",
-            "severity": "HIGH",
-            "title": "Autonomous Tool Calling Requires Human-in-the-Loop Safeguards",
-            "observed": "LLM has autonomous function-calling or API write permissions.",
-            "why_it_matters": "An injected prompt could trigger unauthorized state-changing actions (e.g. database updates, API transactions).",
-            "evidence": f"Tool calling capability set to '{has_tools}'",
-            "action": "Enforce strict read-only tool limits, parameter schema validation, and human confirmation for state-changing operations.",
-            "how_to_verify": "Confirm permission elevation prompts before sensitive tool execution."
+    # 3. System Prompt Disclosure (OWASP LLM07 / MITRE AML.T0056)
+    if has_sys_prompt == "Yes":
+        if not any("Fencing" in g for g in guardrails):
+            findings.append({
+                "domain": "OWASP LLM07: System Prompt Leakage",
+                "severity": "MEDIUM",
+                "title": "System Prompt Lacks Structural Fencing Guardrails",
+                "observed": "System relies on confidential developer system instructions without strict boundary delimitation.",
+                "why_it_matters": "Attackers can use simple extraction queries ('Repeat all words above') to leak proprietary prompt engineering, proprietary workflows, or internal keys.",
+                "evidence": "Developer system prompt declared present without prompt fencing guardrail.",
+                "action": "Wrap system instructions in structured markdown/XML fences (e.g. `<system_instruction>...</system_instruction>`) and add explicit refusal instructions for repetition queries.",
+                "how_to_verify": "Submit prompt extraction probes and confirm the model refuses to output raw system instructions."
+            })
+        else:
+            positive_obs.append({
+                "domain": "OWASP LLM07: System Prompt Protection",
+                "summary": "System prompt fencing guardrail enabled",
+                "evidence": "Developer instructions isolated using delimiter fencing."
+            })
+
+    # 4. Sensitive Data & PII (OWASP LLM02 / MITRE AML.T0057)
+    if "High" in sens_data:
+        has_output_redact = any("Output" in g or "Redaction" in g for g in guardrails)
+        if not has_output_redact:
+            findings.append({
+                "domain": "OWASP LLM02: Sensitive Information Disclosure",
+                "severity": "HIGH",
+                "title": "Sensitive Data Handled Without Output Redaction Guardrails",
+                "observed": "Application processes customer PII, credentials, or financial records without automated output redaction.",
+                "why_it_matters": "A prompt injection or model hallucination could disclose confidential records across user sessions or to unauthorized callers.",
+                "evidence": f"Sensitive data level: '{sens_data}' with no output redaction guardrails configured.",
+                "action": "Deploy an output policy filter (e.g. Microsoft Presidio, regex PII scanner) to redact credit cards, social security numbers, API tokens, and passwords prior to displaying responses.",
+                "how_to_verify": "Test with queries requesting sensitive records and verify output scanner replaces values with `[REDACTED]`."
+            })
+        else:
+            positive_obs.append({
+                "domain": "OWASP LLM02: Data Protection",
+                "summary": "Output redaction active for sensitive data flows",
+                "evidence": "Automated output policy scanner configured to redact confidential tokens."
+            })
+
+    # 5. RAG & Knowledge Poisoning (OWASP LLM04 & LLM08 / MITRE AML.T0051 & AML.T0054)
+    if "Yes" in uses_rag:
+        if "untrusted" in rag_untrusted.lower() or "external" in rag_untrusted.lower():
+            findings.append({
+                "domain": "OWASP LLM08: Vector Store & RAG Knowledge Poisoning",
+                "severity": "HIGH",
+                "title": "RAG Knowledge Store Ingests Untrusted Documents",
+                "observed": "Application ingests unvetted user uploads, external URLs, or third-party documents into the vector store.",
+                "why_it_matters": "Attackers can plant indirect prompt injections inside documents (e.g. white-on-white text, markdown payload) that activate whenever another user's query retrieves that chunk.",
+                "evidence": f"RAG ingestion source: '{rag_untrusted}'.",
+                "action": "Sanitize all uploaded documents prior to embedding; strip executable markdown/HTML; enforce tenant-level access controls so users can only retrieve chunks from their own authorized documents.",
+                "how_to_verify": "Upload a test document with an embedded prompt instruction and verify retrieval does not execute the payload."
+            })
+        else:
+            positive_obs.append({
+                "domain": "OWASP LLM08: Knowledge Isolation",
+                "summary": "RAG knowledge store restricted to curated internal sources",
+                "evidence": "Knowledge store does not ingest untrusted third-party web content."
+            })
+
+    # 6. Autonomous Agency & Tool Execution (OWASP LLM06 / MITRE AML.T0055)
+    if "Write/Execute" in tool_calling:
+        if "Yes" not in human_in_loop:
+            findings.append({
+                "domain": "OWASP LLM06: Excessive Agency & Autonomous Execution",
+                "severity": "CRITICAL",
+                "title": "Destructive Tool Calling Lacks Human-in-the-Loop Confirmation",
+                "observed": "LLM has autonomous write/execute permissions (database updates, external APIs, commands) without mandatory human confirmation.",
+                "why_it_matters": "A prompt injection attack can force the model to execute unauthorized tool calls (e.g. deleting customer accounts, transferring funds, or invoking destructive APIs) without user intervention.",
+                "evidence": f"Tool capabilities: '{tool_calling}' with Human-in-the-loop: '{human_in_loop}'.",
+                "action": "Implement a mandatory Human-in-the-Loop approval gate for all state-changing API or database operations; enforce strict schema parameter validation on all tool inputs.",
+                "how_to_verify": "Attempt tool execution via adversarial prompt and confirm operation pauses awaiting explicit user confirmation."
+            })
+        else:
+            positive_obs.append({
+                "domain": "OWASP LLM06: Agency Governance",
+                "summary": "Human-in-the-loop enforced for destructive tool operations",
+                "evidence": "State-changing tool executions require explicit user approval."
+            })
+    elif "Read-only" in tool_calling:
+        positive_obs.append({
+            "domain": "OWASP LLM06: Agency Governance",
+            "summary": "Tools restricted to read-only lookup APIs",
+            "evidence": "No destructive or state-changing autonomous permissions granted to model."
+        })
+
+    # 7. Audit Logging & Monitoring
+    if audit_logging == "Yes":
+        positive_obs.append({
+            "domain": "Telemetry & Compliance",
+            "summary": "Prompt and response security audit logging active",
+            "evidence": "Persistent logs available for incident forensics and compliance reviews."
         })
     else:
-        positive_obs.append({
-            "domain": "Agency Control",
-            "summary": "Limited autonomous tool execution",
-            "evidence": "System does not allow unrestricted autonomous function calling."
+        findings.append({
+            "domain": "Telemetry & Compliance",
+            "severity": "LOW",
+            "title": "Model Inference Telemetry Not Retained for Security Auditing",
+            "observed": "Application does not log model prompt and completion telemetry.",
+            "why_it_matters": "Without audit logs, security teams cannot detect abuse patterns, trace data exfiltration events, or conduct post-incident forensics.",
+            "evidence": "Audit logging declared inactive.",
+            "action": "Configure structured audit logging with timestamp, user session ID, input prompt hash, and completion token metadata.",
+            "how_to_verify": "Confirm query events generate immutable log records in your SIEM or logging platform."
         })
 
-    unassessed.append({
-        "area": "Live Dynamic Penetration Probing",
-        "reason": "Questionnaire assessment is an architectural review and does not dispatch live network packets",
-        "required_access": "Connect live endpoint or web address in Step 1"
-    })
+    # Unassessed Dynamic Areas
+    unassessed.extend([
+        {"area": "Live Dynamic Runtime Penetration Testing", "reason": "Questionnaire evaluation is an architectural threat analysis; live network exploit probes were not dispatched.", "required_access": "Connect live API endpoint or Ollama Gateway in New Assessment"},
+        {"area": "Host Operating System & Container Kernel Security", "reason": "Evaluates LLM application layer; infrastructure host configuration requires cloud/host audit.", "required_access": "Cloud security audit role / host scanner"}
+    ])
 
     issues_cnt = len(findings)
     safe_cnt = len(positive_obs)
 
+    summary_str = (
+        f"Comprehensive architectural threat evaluation completed for '{app_name}'. "
+        f"Identified {issues_cnt} architectural security finding(s) with actionable remediation, "
+        f"{safe_cnt} verified baseline control(s), and {len(unassessed)} dynamic runtime area(s) "
+        f"requiring a live connection."
+    )
+
     return {
         "id": store.generate_assessment_id(),
-        "name": f"Architecture Review: {app_name}",
+        "name": f"Architecture Audit: {app_name}",
         "target_type": "questionnaire",
-        "target_input": f"{app_name} ({exposure})",
+        "target_input": f"{app_name} ({exposure.split(' (')[0]})",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "status": "COMPLETE",
-        "summary": f"Architectural risk review completed for {app_name}. Identified {issues_cnt} structural recommendation(s) and {safe_cnt} verified baseline control(s) mapped to OWASP LLM and MITRE ATLAS.",
+        "status": "COMPLETE" if issues_cnt == 0 else "PARTIAL",
+        "summary": summary_str,
         "counts": {
             "issues": issues_cnt,
             "no_issue": safe_cnt,
@@ -1353,9 +1608,9 @@ def evaluate_questionnaire_inputs(inp: dict) -> dict:
         "positive_observations": positive_obs,
         "unassessed_areas": unassessed,
         "next_steps": [
-            "Implement input/output guardrails as recommended in the architectural findings.",
-            "Conduct active live endpoint or repository scanning to verify runtime controls.",
-            "Review findings with system architects and engineering leads."
+            "Implement recommended input fencing and prompt isolation guardrails.",
+            "Enforce Human-in-the-loop approval gates for all state-changing tool executions." if "Write/Execute" in tool_calling else "Maintain read-only boundaries on tool integrations.",
+            "Connect your live API endpoint or local Ollama model in ATLAS-Risk to perform active dynamic penetration testing."
         ]
     }
 
@@ -1363,7 +1618,7 @@ def evaluate_questionnaire_inputs(inp: dict) -> dict:
 def build_stopped_record(inp: dict, reason: str) -> dict:
     """Builds a standardized STOPPED assessment record when user halts execution."""
     store = AssessmentStore()
-    target_val = inp.get("url") or inp.get("github_url") or inp.get("chatbot_url") or "Target"
+    target_val = inp.get("url") or inp.get("github_url") or inp.get("chatbot_url") or inp.get("app_name") or "Target"
     return {
         "id": store.generate_assessment_id(),
         "name": f"Stopped Run: {target_val}",
