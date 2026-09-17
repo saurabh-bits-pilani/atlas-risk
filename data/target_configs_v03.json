@@ -1,0 +1,264 @@
+{
+  "target_configurations": {
+    "TARGET-DONKAI-VULN": {
+      "target_id": "TARGET-DONKAI-VULN",
+      "scenario_id": "SCEN-A",
+      "name": "DonkAI - Vulnerable Baseline (v0.2.2 Freeze)",
+      "target_type": "deterministic_benchmark",
+      "description": "Preserved DonkAI baseline educational application.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "Yes - Multi-tenant RAG without document filter controls",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-DONKAI-HARD": {
+      "target_id": "TARGET-DONKAI-HARD",
+      "scenario_id": "SCEN-A",
+      "name": "DonkAI - Hardened Safeguard (v0.2.2 Freeze)",
+      "target_type": "deterministic_benchmark",
+      "description": "Preserved DonkAI hardened educational application.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "Yes - RAG with strict tenant access controls",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "Yes - Read-only lookup APIs",
+        "q7_agency_autonomy": "Human-in-the-loop approval for critical actions",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-CHATBOT-VULN": {
+      "target_id": "TARGET-CHATBOT-VULN",
+      "scenario_id": "SCEN-B",
+      "name": "Scenario B — Basic LLM Chatbot (Vulnerable)",
+      "target_type": "stochastic_llm",
+      "description": "Basic chatbot accepting user input without RAG, without tools, and without memory.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "No tool execution",
+        "q7_agency_autonomy": "N/A - No tools",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-CHATBOT-HARD": {
+      "target_id": "TARGET-CHATBOT-HARD",
+      "scenario_id": "SCEN-B",
+      "name": "Scenario B — Basic LLM Chatbot (Hardened)",
+      "target_type": "stochastic_llm",
+      "description": "Basic chatbot with system prompt shielding and strict output schema validation.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "No tool execution",
+        "q7_agency_autonomy": "N/A - No tools",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-RAG-VULN": {
+      "target_id": "TARGET-RAG-VULN",
+      "scenario_id": "SCEN-C",
+      "name": "Scenario C — RAG Application (Vulnerable)",
+      "target_type": "rag_application",
+      "description": "RAG vector retrieval system over synthetic corpus without document permission filters.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "Yes - Multi-tenant RAG without document filter controls",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "No tool execution",
+        "q7_agency_autonomy": "N/A - No tools",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-RAG-HARD": {
+      "target_id": "TARGET-RAG-HARD",
+      "scenario_id": "SCEN-C",
+      "name": "Scenario C — RAG Application (Hardened)",
+      "target_type": "rag_application",
+      "description": "RAG vector retrieval system with tenant ACL filtering and indirect injection isolation.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "Yes - RAG with strict tenant access controls",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "No tool execution",
+        "q7_agency_autonomy": "N/A - No tools",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-AGENT-VULN": {
+      "target_id": "TARGET-AGENT-VULN",
+      "scenario_id": "SCEN-D",
+      "name": "Scenario D — Tool/Agent Application (Vulnerable)",
+      "target_type": "agentic_application",
+      "description": "LLM agent integrated with sandboxed tool registry operating fully autonomously.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-AGENT-HARD": {
+      "target_id": "TARGET-AGENT-HARD",
+      "scenario_id": "SCEN-D",
+      "name": "Scenario D — Tool/Agent Application (Hardened)",
+      "target_type": "agentic_application",
+      "description": "LLM agent with read-only tools and human approval controls for write actions.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "Yes - Read-only lookup APIs",
+        "q7_agency_autonomy": "Human-in-the-loop approval for critical actions",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-CMPD-VULN": {
+      "target_id": "TARGET-CMPD-VULN",
+      "scenario_id": "SCEN-E",
+      "name": "Scenario E — RAG + Agent Compound (Vulnerable)",
+      "target_type": "agentic_application",
+      "description": "Compound system where retrieved RAG content directly feeds autonomous tool execution.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "Yes - Multi-tenant RAG without document filter controls",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-CMPD-HARD": {
+      "target_id": "TARGET-CMPD-HARD",
+      "scenario_id": "SCEN-E",
+      "name": "Scenario E — RAG + Agent Compound (Hardened)",
+      "target_type": "agentic_application",
+      "description": "Compound system with RAG context isolation and human approval for tool execution.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "Yes - RAG with strict tenant access controls",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "Yes - Read-only lookup APIs",
+        "q7_agency_autonomy": "Human-in-the-loop approval for critical actions",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-NEG-HARD": {
+      "target_id": "TARGET-NEG-HARD",
+      "scenario_id": "SCEN-F",
+      "name": "Scenario F — Secure Negative Controls (Hardened)",
+      "target_type": "stochastic_llm",
+      "description": "Hardened application evaluated against 10 adversarial negative control vectors.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "No tool execution",
+        "q7_agency_autonomy": "N/A - No tools",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-HOLDOUT-VULN": {
+      "target_id": "TARGET-HOLDOUT-VULN",
+      "scenario_id": "SCEN-H",
+      "name": "Scenario H — Unseen Holdout Set (Vulnerable)",
+      "target_type": "stochastic_llm",
+      "description": "Sealed unseen holdout validation suite evaluated against vulnerable baseline configuration.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "Yes - Multi-tenant RAG without document filter controls",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-HOLDOUT-HARD": {
+      "target_id": "TARGET-HOLDOUT-HARD",
+      "scenario_id": "SCEN-H",
+      "name": "Scenario H — Unseen Holdout Set (Hardened)",
+      "target_type": "stochastic_llm",
+      "description": "Sealed unseen holdout validation suite evaluated against hardened safeguard configuration.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "Yes - RAG with strict tenant access controls",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "Yes - Read-only lookup APIs",
+        "q7_agency_autonomy": "Human-in-the-loop approval for critical actions",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    }
+  }
+}

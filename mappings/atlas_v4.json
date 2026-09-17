@@ -1,0 +1,42 @@
+{
+  "framework_name": "MITRE ATLAS",
+  "framework_version": "MITRE ATLAS v4.0",
+  "mapping_provenance": {
+    "source": "Official MITRE ATLAS Matrix (atlas.mitre.org)",
+    "version": "v4.0",
+    "verified_flag": true,
+    "verification_date": "2026-09-17"
+  },
+  "techniques": {
+    "AML.T0051": {
+      "id": "AML.T0051",
+      "name": "LLM Prompt Injection",
+      "tactic": "Execution",
+      "description": "Adversary crafts prompts that alter the targeted LLM's behavioral safeguards."
+    },
+    "AML.T0054": {
+      "id": "AML.T0054",
+      "name": "LLM Data Leakage",
+      "tactic": "Exfiltration",
+      "description": "Adversary extracts sensitive training data, context parameters, or private system data."
+    },
+    "AML.T0055": {
+      "id": "AML.T0055",
+      "name": "Insecure LLM Tool Execution",
+      "tactic": "Execution / Impact",
+      "description": "Adversary exploits autonomous function calling to execute unauthorized API actions."
+    },
+    "AML.T0056": {
+      "id": "AML.T0056",
+      "name": "RAG / Vector Store Poisoning",
+      "tactic": "Initial Access / Persistence",
+      "description": "Adversary injects malicious documents into vector knowledge bases retrieved by RAG systems."
+    },
+    "AML.T0057": {
+      "id": "AML.T0057",
+      "name": "System Prompt Extraction",
+      "tactic": "Reconnaissance / Exfiltration",
+      "description": "Adversary extracts developer system prompts revealing operational logic and rules."
+    }
+  }
+}

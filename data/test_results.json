@@ -1,0 +1,111 @@
+{
+  "suite_name": "ATLAS-Risk Research v0.2 Mandatory Acceptance Test Suite",
+  "timestamp": "2026-09-17T05:16:02.055996+00:00",
+  "total_tests": 20,
+  "passed": 20,
+  "failed": 0,
+  "critical_failures": 0,
+  "delivery_gate_passed": true,
+  "test_results": [
+    {
+      "test": "test_A_ground_truth_isolation",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_B_positive_detection",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_C_negative_control",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_D_false_positive_fixture",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_E_false_negative_fixture",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_F_exact_metrics_calculation",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_G_threat_applicability_context_toggle",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_H_applicable_not_vulnerable",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_I_risk_scoring_exact_math",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_J_scoring_version_tracking",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_K_framework_mapping_provenance",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_L_test_case_versioning",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_M_repeated_run_stochastic_asr",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_N_deterministic_benchmark_warning",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_O_before_vs_after_mitigation",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_P_two_layer_baseline_comparison",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_Q_experiment_persistence",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_R_export_schema_completeness",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_S_reproducibility",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "test": "test_T_safety_gating",
+      "status": "PASSED",
+      "error": null
+    }
+  ]
+}

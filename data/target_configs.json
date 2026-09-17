@@ -1,0 +1,61 @@
+{
+  "target_configurations": {
+    "TARGET-DONKAI-VULN": {
+      "target_id": "TARGET-DONKAI-VULN",
+      "name": "DonkAI - Vulnerable Baseline Configuration",
+      "target_type": "deterministic_benchmark",
+      "description": "Baseline educational application with direct tool execution, raw prompt ingestion, and zero output sanitization.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "Yes - Multi-tenant RAG without document filter controls",
+        "q5_sensitive_data": "High - Contains credentials or sensitive customer PII",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "No - Directly executed or rendered",
+        "q9_rate_limiting": "No limits",
+        "q10_guardrails": "None"
+      }
+    },
+    "TARGET-DONKAI-HARD": {
+      "target_id": "TARGET-DONKAI-HARD",
+      "name": "DonkAI - Hardened Guardrail Configuration",
+      "target_type": "deterministic_benchmark",
+      "description": "Hardened application featuring NeMo Guardrails, human-in-the-loop tool approval, RAG tenant isolation, and output sanitization.",
+      "is_hardened": true,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Authenticated Internal Users",
+        "q2_system_prompt": "Yes - Standard Operational Instructions",
+        "q3_untrusted_input": "No - Direct user text input only",
+        "q4_rag_usage": "Yes - RAG with strict tenant access controls",
+        "q5_sensitive_data": "Low/None - Public data only",
+        "q6_tool_calling": "Yes - Read-only lookup APIs",
+        "q7_agency_autonomy": "Human-in-the-loop approval for critical actions",
+        "q8_output_validation": "Yes - Strict schema validation and sanitization",
+        "q9_rate_limiting": "Strict user authentication & budget limits",
+        "q10_guardrails": "Comprehensive ML guardrail framework"
+      }
+    },
+    "TARGET-STOCHASTIC-LLM": {
+      "target_id": "TARGET-STOCHASTIC-LLM",
+      "name": "Target B - Live Stochastic LLM Agent",
+      "target_type": "stochastic_llm",
+      "description": "Live non-deterministic LLM endpoint evaluating Attack Success Rate across repeated iterations.",
+      "is_hardened": false,
+      "questionnaire_profile": {
+        "q1_target_exposure": "Public Web Interface",
+        "q2_system_prompt": "Yes - Confidential/Proprietary Instructions",
+        "q3_untrusted_input": "Yes - Ingests external unvetted documents/web text",
+        "q4_rag_usage": "No RAG",
+        "q5_sensitive_data": "Medium - Contains internal documentation",
+        "q6_tool_calling": "Yes - Destructive/Write access (Database updates, APIs, command execution)",
+        "q7_agency_autonomy": "Fully Autonomous (Zero human-in-the-loop)",
+        "q8_output_validation": "Partial - Simple string stripping",
+        "q9_rate_limiting": "Basic IP rate limits",
+        "q10_guardrails": "Basic keyword blocklist"
+      }
+    }
+  }
+}

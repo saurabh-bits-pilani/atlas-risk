@@ -1,0 +1,62 @@
+{
+  "framework_name": "OWASP Top 10 for Large Language Model Applications",
+  "framework_version": "OWASP LLM Top 10 2025",
+  "mapping_provenance": {
+    "source": "Official OWASP GenAI Security Project (genai.owasp.org)",
+    "version": "2025 Release",
+    "verified_flag": true,
+    "verification_date": "2026-09-17"
+  },
+  "categories": {
+    "LLM01": {
+      "id": "LLM01:2025",
+      "name": "Prompt Injection",
+      "description": "Manipulating LLM behavior via crafted inputs causing unauthorized actions or bypasses."
+    },
+    "LLM02": {
+      "id": "LLM02:2025",
+      "name": "Sensitive Information Disclosure",
+      "description": "Unintended disclosure of confidential data, secrets, or internal system context in LLM outputs."
+    },
+    "LLM03": {
+      "id": "LLM03:2025",
+      "name": "Supply Chain Vulnerabilities",
+      "description": "Risks from compromised third-party models, datasets, plugins, or vector databases."
+    },
+    "LLM04": {
+      "id": "LLM04:2025",
+      "name": "Data and Model Poisoning",
+      "description": "Tampering with training data, fine-tuning samples, or vector stores to introduce backdoors."
+    },
+    "LLM05": {
+      "id": "LLM05:2025",
+      "name": "Improper Output Handling",
+      "description": "Inadequate validation/sanitization of LLM output before passing to downstream systems."
+    },
+    "LLM06": {
+      "id": "LLM06:2025",
+      "name": "Excessive Agency & Tool Misuse",
+      "description": "Granting excessive autonomy, permissions, or unchecked tool calling capabilities to an LLM."
+    },
+    "LLM07": {
+      "id": "LLM07:2025",
+      "name": "System Prompt Leakage",
+      "description": "Exposing system prompts or internal operational instructions via adversarial prompt queries."
+    },
+    "LLM08": {
+      "id": "LLM08:2025",
+      "name": "Vector and Embedding Weaknesses",
+      "description": "Flaws in vector indexing, retrieval permissions, or distance thresholds causing unauthorized data exposure."
+    },
+    "LLM09": {
+      "id": "LLM09:2025",
+      "name": "Misinformation",
+      "description": "LLM producing false, hallucinated, or unverified output causing decision errors."
+    },
+    "LLM10": {
+      "id": "LLM10:2025",
+      "name": "Unbounded Consumption",
+      "description": "Resource exhaustion, high API cost, or DoS due to unrestricted query processing."
+    }
+  }
+}
