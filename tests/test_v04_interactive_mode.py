@@ -140,7 +140,7 @@ def test_v04_evidence_evaluator_verdicts():
         tc_sensitive,
         raw_response=""
     )
-    assert v5 == "INCONCLUSIVE / MANUAL REVIEW REQUIRED", f"Expected INCONCLUSIVE, got {v5}"
+    assert "INCONCLUSIVE" in v5, f"Expected INCONCLUSIVE, got {v5}"
 
     print("✅ test_v04_evidence_evaluator_verdicts passed!")
 

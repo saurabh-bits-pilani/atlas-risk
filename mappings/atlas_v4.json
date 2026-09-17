@@ -2,41 +2,53 @@
   "framework_name": "MITRE ATLAS",
   "framework_version": "MITRE ATLAS v4.0",
   "mapping_provenance": {
-    "source": "Official MITRE ATLAS Matrix (atlas.mitre.org)",
+    "source": "Official MITRE ATLAS Matrix (atlas.mitre.org / d3fend.mitre.org)",
     "version": "v4.0",
     "verified_flag": true,
-    "verification_date": "2026-09-17"
+    "verification_date": "2026-09-17",
+    "official_urls": {
+      "AML.T0051": "https://atlas.mitre.org/techniques/AML.T0051",
+      "AML.T0054": "https://d3fend.mitre.org/offensive-technique/attack/AML.T0054/",
+      "AML.T0055": "https://d3fend.mitre.org/offensive-technique/attack/AML.T0055/",
+      "AML.T0056": "https://atlas.mitre.org/techniques/AML.T0056",
+      "AML.T0057": "https://atlas.mitre.org/techniques/AML.T0057"
+    }
   },
   "techniques": {
     "AML.T0051": {
       "id": "AML.T0051",
       "name": "LLM Prompt Injection",
       "tactic": "Execution",
-      "description": "Adversary crafts prompts that alter the targeted LLM's behavioral safeguards."
+      "description": "Adversary crafts prompts that alter the targeted LLM's behavioral safeguards.",
+      "source_url": "https://atlas.mitre.org/techniques/AML.T0051"
     },
     "AML.T0054": {
       "id": "AML.T0054",
-      "name": "LLM Data Leakage",
-      "tactic": "Exfiltration",
-      "description": "Adversary extracts sensitive training data, context parameters, or private system data."
+      "name": "LLM Jailbreak",
+      "tactic": "Execution",
+      "description": "Adversary induces an LLM to override its safety guidelines or alignment behaviors.",
+      "source_url": "https://d3fend.mitre.org/offensive-technique/attack/AML.T0054/"
     },
     "AML.T0055": {
       "id": "AML.T0055",
-      "name": "Insecure LLM Tool Execution",
-      "tactic": "Execution / Impact",
-      "description": "Adversary exploits autonomous function calling to execute unauthorized API actions."
+      "name": "Unsecured Credentials",
+      "tactic": "Credential Access / Initial Access",
+      "description": "Exploitation of weak credential management mechanisms or inadequately protected API keys.",
+      "source_url": "https://d3fend.mitre.org/offensive-technique/attack/AML.T0055/"
     },
     "AML.T0056": {
       "id": "AML.T0056",
-      "name": "RAG / Vector Store Poisoning",
-      "tactic": "Initial Access / Persistence",
-      "description": "Adversary injects malicious documents into vector knowledge bases retrieved by RAG systems."
+      "name": "Extract LLM System Prompt",
+      "tactic": "Reconnaissance / Exfiltration",
+      "description": "Adversary exfiltrates or extracts the hidden system instructions governing an LLM.",
+      "source_url": "https://atlas.mitre.org/techniques/AML.T0056"
     },
     "AML.T0057": {
       "id": "AML.T0057",
-      "name": "System Prompt Extraction",
-      "tactic": "Reconnaissance / Exfiltration",
-      "description": "Adversary extracts developer system prompts revealing operational logic and rules."
+      "name": "LLM Data Leakage",
+      "tactic": "Exfiltration",
+      "description": "Adversary crafts prompts to induce an LLM to reveal sensitive user or training data.",
+      "source_url": "https://atlas.mitre.org/techniques/AML.T0057"
     }
   }
 }

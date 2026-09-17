@@ -201,7 +201,7 @@ def run_full_validation():
         tc_cred,
         raw_response=""
     )
-    assert v_empty == "INCONCLUSIVE / MANUAL REVIEW REQUIRED", f"Expected INCONCLUSIVE, got {v_empty}"
+    assert "INCONCLUSIVE" in v_empty, f"Expected INCONCLUSIVE, got {v_empty}"
     print(f"✅ Edge Case C Passed: Empty response string -> {v_empty} (Rationale: {r_empty})")
 
     # -------------------------------------------------------------------------

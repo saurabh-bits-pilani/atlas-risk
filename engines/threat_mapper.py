@@ -82,16 +82,16 @@ class ThreatMapper:
             "exposure_multiplier": 1.0 if "Yes" in answers.get("q3_untrusted_input", "") else 0.3
         })
 
-        # 2. System Prompt & Data Leakage (LLM07 & LLM02 / AML.T0057 & AML.T0054)
+        # 2. System Prompt & Data Leakage (LLM07 & LLM02 / AML.T0056 & AML.T0057)
         has_sys_prompt = "Yes" in answers.get("q2_system_prompt", "")
         has_sens_data = answers.get("q5_sensitive_data") != "Low/None - Public data only"
         
         applicability.append({
             "threat_family": "System Prompt Leakage",
             "owasp_code": "LLM07",
-            "atlas_code": "AML.T0057",
+            "atlas_code": "AML.T0056",
             "owasp": format_owasp("LLM07"),
-            "atlas": format_atlas("AML.T0057"),
+            "atlas": format_atlas("AML.T0056"),
             "is_applicable": has_sys_prompt,
             "rationale": "Confidential developer prompt instructions are present." if has_sys_prompt else "No developer system prompt declared.",
             "exposure_multiplier": 1.0 if has_sys_prompt else 0.4
@@ -100,22 +100,22 @@ class ThreatMapper:
         applicability.append({
             "threat_family": "Sensitive Information Disclosure",
             "owasp_code": "LLM02",
-            "atlas_code": "AML.T0054",
+            "atlas_code": "AML.T0057",
             "owasp": format_owasp("LLM02"),
-            "atlas": format_atlas("AML.T0054"),
+            "atlas": format_atlas("AML.T0057"),
             "is_applicable": has_sens_data,
             "rationale": "Sensitive customer PII or API credentials exist in context." if has_sens_data else "Public data only.",
             "exposure_multiplier": 1.0 if has_sens_data else 0.3
         })
 
-        # 3. Vector Store & RAG Risk (LLM08 / AML.T0056)
+        # 3. Vector Store & RAG Risk (LLM08 / AML.T0051)
         rag_used = "Yes" in answers.get("q4_rag_usage", "")
         applicability.append({
             "threat_family": "RAG & Vector Store Risk",
             "owasp_code": "LLM08",
-            "atlas_code": "AML.T0056",
+            "atlas_code": "AML.T0051",
             "owasp": format_owasp("LLM08"),
-            "atlas": format_atlas("AML.T0056"),
+            "atlas": format_atlas("AML.T0051"),
             "is_applicable": rag_used,
             "rationale": "System utilizes RAG/Vector store retrieval." if rag_used else "No RAG vector store in use.",
             "exposure_multiplier": 0.9 if "without document filter" in answers.get("q4_rag_usage", "") else 0.4

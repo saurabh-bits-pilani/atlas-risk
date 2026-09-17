@@ -146,14 +146,28 @@ def render_interactive_questionnaire_app():
                 "but active prompt injection and attack execution probes are strictly **BLOCKED** to prevent unauthorized penetration testing."
             )
             
+            # Dynamic High-Priority Security Control Recommendations based on applicable threats only
+            dynamic_recs = []
+            if any(a['threat_family'] in ['Direct Prompt Injection', 'Indirect Prompt Injection', 'Guardrail Bypass'] for a in applicable_threats):
+                dynamic_recs.append("1. **Prompt Injection Safeguards:** Implement strict system prompt delimiters and input sanitization.")
+            if any(a['threat_family'] == 'System Prompt Leakage' for a in applicable_threats):
+                dynamic_recs.append("2. **System Prompt Redaction:** Redact confidential developer prompt instructions.")
+            if any(a['threat_family'] == 'Sensitive Information Disclosure' for a in applicable_threats):
+                dynamic_recs.append("3. **Sensitive Data Filtering:** Enforce contextual PII redaction and credential masking.")
+            if any(a['threat_family'] == 'RAG & Vector Store Risk' for a in applicable_threats):
+                dynamic_recs.append("4. **Indirect RAG Context Filtering:** Deploy document-level RBAC and sanitization filters on vector retrieval.")
+            if any(a['threat_family'] == 'Excessive Agency & Tool Misuse' for a in applicable_threats):
+                dynamic_recs.append("5. **Agent Excessive Agency Guardrails:** Enforce mandatory Human-in-the-Loop approval for write/delete tools.")
+            if any(a['threat_family'] == 'Improper Output Handling' for a in applicable_threats):
+                dynamic_recs.append("6. **Output Encoding & Sanitization:** Encode output strings before rendering to prevent injection.")
+            if any(a['threat_family'] == 'Unbounded Consumption' for a in applicable_threats):
+                dynamic_recs.append("7. **Unbounded Consumption Budgeting:** Set hard per-user API rate limits and token spend caps.")
+
+            if not dynamic_recs:
+                dynamic_recs = ["1. **Baseline System Monitoring:** Maintain standard logging and security auditing."]
+
             st.subheader("📋 Recommended Security Controls & Passive Assessment Summary")
-            st.info(
-                "### High-Priority Security Control Recommendations:\n\n"
-                "1. **Prompt Injection Boundary Safeguards:** Implement strict system prompt delimiters and input sanitization.\n"
-                "2. **Indirect RAG Context Filtering:** Deploy document-level RBAC and sanitization filters on vector retrieval.\n"
-                "3. **Agent Excessive Agency Guardrails:** Enforce mandatory Human-in-the-Loop approval for write/delete tools.\n"
-                "4. **Unbounded Consumption Budgeting:** Set hard per-user API rate limits and daily token spend caps."
-            )
+            st.info("### High-Priority Security Control Recommendations:\n\n" + "\n".join(dynamic_recs))
 
             # Downloadable Passive Assessment Report
             passive_md = (
@@ -169,10 +183,7 @@ def render_interactive_questionnaire_app():
                 + "\n".join([f"- **{a['threat_family']}** ({a['owasp_code']} / {a['atlas_code']}): {a['rationale']}" for a in non_applicable_threats]) +
                 f"\n\n---\n\n"
                 f"## 📋 Recommended Security Controls\n"
-                f"1. **Prompt Injection Boundary Safeguards:** Implement strict system prompt delimiters and input sanitization.\n"
-                f"2. **Indirect RAG Context Filtering:** Deploy document-level RBAC and sanitization filters on vector retrieval.\n"
-                f"3. **Agent Excessive Agency Guardrails:** Enforce mandatory Human-in-the-Loop approval for write/delete tools.\n"
-                f"4. **Unbounded Consumption Budgeting:** Set hard per-user API rate limits and daily token spend caps.\n"
+                + "\n".join(dynamic_recs) + "\n"
             )
             st.download_button(
                 label="📥 Download PASSIVE ASSESSMENT REPORT (.md)",
@@ -187,20 +198,24 @@ def render_interactive_questionnaire_app():
 
             # Pre-execution Static Probe Preview List
             test_runner = TestRunner()
+            app_map_family = {a["threat_family"]: a for a in applicability}
+            app_map_owasp = {a["owasp_code"]: a for a in applicability}
+
             with st.expander("🔍 View Pre-Execution Static Assessment Probe Preview (Audit List)", expanded=False):
                 st.markdown(
                     "**Assessment Scope, Resource Limits, & Safety Assurance:**\n\n"
                     "• **Repeats Per Test:** 3 iterations (Simulated Mode) / 1 iteration (Live HTTP Mode)\n\n"
-                    "• **Resource Limits:** 5-second HTTP request timeout, maximum 500 token prompt request budget per test vector\n\n"
-                    "• **Non-Destructive Safety Assurance:** `TEST-DOS-001` evaluates system token ceiling caps via standard query prompts without network socket DoS, payload fuzzing, or destructive attacks."
+                    "• **Enforced Resource Limits:** 5-second HTTP request timeout limit enforced per live probe execution\n\n"
+                    "• **Non-Destructive Safety Assurance:** `TEST-DOS-001` measures system token ceiling caps via standard query prompts without network socket DoS, payload fuzzing, or destructive attacks."
                 )
                 st.markdown("---")
                 st.markdown("The following static, version-controlled probes will be evaluated against applicable threats:")
                 for idx, tc in enumerate(test_runner.test_cases, 1):
-                    owasp_code = tc.get("expected_owasp", "LLM01")
                     tf = tc.get("threat_family", "")
-                    app_info = next((a for a in applicability if a["threat_family"] == tf or a["owasp_code"] == owasp_code), {"is_applicable": True})
-                    status_str = "🔴 APPLICABLE (Will Execute)" if app_info["is_applicable"] else "🟢 EXCLUDED (Non-Applicable Vector)"
+                    owasp_code = tc.get("expected_owasp", "LLM01")
+                    app_info = app_map_family.get(tf) or app_map_owasp.get(owasp_code, {"is_applicable": True})
+                    is_app = app_info.get("is_applicable", True)
+                    status_str = "🔴 APPLICABLE (Will Execute)" if is_app else "🟢 EXCLUDED (Non-Applicable Vector)"
                     st.markdown(f"**Probe #{idx}:** `{tc['test_id']}` — {tc['name']} ({tc.get('expected_owasp', 'LLM01')} / {tc.get('expected_atlas', 'AML.T0051')}) — **{status_str}**")
                     st.caption(f"Exact Prompt Input Vector: `{tc.get('test_vector_prompt', '')}`")
 
@@ -221,12 +236,16 @@ def render_interactive_questionnaire_app():
                     chk_fuzz = st.checkbox("4. Static Test Suite confirmed (Zero zero-day/fuzzing/DoS payloads).")
 
                 live_target_url = st.text_input("Active Target Endpoint URL", value=q_prof.get("app_url", "https://api.target.internal/v1/chat"))
+                valid_url = bool(live_target_url.strip()) and (live_target_url.strip().startswith("http://") or live_target_url.strip().startswith("https://"))
 
-                if chk_auth and chk_url and chk_scope and chk_fuzz:
+                if chk_auth and chk_url and chk_scope and chk_fuzz and valid_url:
                     can_execute = True
                     st.success("✅ Scope Verification Complete: Live authorized assessment unlocked.")
                 else:
-                    st.warning("⚠️ Scope Verification Incomplete: Check all 4 boxes above to enable Live Authorized Assessment.")
+                    if not valid_url:
+                        st.warning("⚠️ Invalid Target URL: Please enter a valid HTTP or HTTPS endpoint URL.")
+                    else:
+                        st.warning("⚠️ Scope Verification Incomplete: Check all 4 boxes above to enable Live Authorized Assessment.")
             else:
                 can_execute = True  # Simulated mode auto-unlocked when authorized
 
@@ -435,11 +454,15 @@ def render_interactive_questionnaire_app():
                         rt_chk4 = st.checkbox("4. Static Test Suite confirmed (Zero zero-day/fuzzing/DoS payloads).")
 
                     retest_url = st.text_input("Remediated Target Endpoint URL", value=q_prof.get("app_url", "https://api.target.internal/v1/chat-remediated"))
+                    valid_retest_url = bool(retest_url.strip()) and (retest_url.strip().startswith("http://") or retest_url.strip().startswith("https://"))
 
-                    can_live_retest = rt_chk1 and rt_chk2 and rt_chk3 and rt_chk4
+                    can_live_retest = rt_chk1 and rt_chk2 and rt_chk3 and rt_chk4 and valid_retest_url
 
                     if not can_live_retest:
-                        st.warning("⚠️ Scope Verification Incomplete: Check all 4 boxes above to enable Live Authorized Retest.")
+                        if not valid_retest_url:
+                            st.warning("⚠️ Invalid Remediated Target URL: Please enter a valid HTTP or HTTPS endpoint URL.")
+                        else:
+                            st.warning("⚠️ Scope Verification Incomplete: Check all 4 boxes above to enable Live Authorized Retest.")
 
                     if st.button("⚡ Execute Live Authorized Retest", disabled=not can_live_retest):
                         with st.spinner("Executing post-remediation live probe suite against target..."):
