@@ -64,7 +64,7 @@ def render_step_tracker(current_step: int):
         (4, "Results")
     ]
 
-    html_parts = ['<div style="display: flex; align-items: center; justify-content: space-between; max-width: 820px; margin-bottom: 28px;">']
+    html_parts = ['<div class="atlas-step-tracker" style="display: flex; align-items: center; justify-content: space-between; max-width: 820px; margin-bottom: 28px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px;">']
 
     for idx, (s_num, s_label) in enumerate(steps):
         is_completed = (s_num < current_step)
@@ -90,18 +90,18 @@ def render_step_tracker(current_step: int):
             font_weight = "500"
 
         node_html = f'''
-        <div style="display: flex; align-items: center; gap: 10px; white-space: nowrap;">
-            <div style="width: 30px; height: 30px; border-radius: 50%; background: {circle_bg}; color: {circle_fg}; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;">
+        <div style="display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; background: {circle_bg}; color: {circle_fg}; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0;">
                 {circle_content}
             </div>
-            <span style="font-size: 14px; font-weight: {font_weight}; color: {label_color};">{s_label}</span>
+            <span style="font-size: 13.5px; font-weight: {font_weight}; color: {label_color};">{s_label}</span>
         </div>
         '''
         html_parts.append(node_html)
 
         if idx < len(steps) - 1:
             line_color = "#2563eb" if s_num < current_step else "#e2e8f0"
-            html_parts.append(f'<div style="flex: 1; height: 2px; background: {line_color}; margin: 0 14px;"></div>')
+            html_parts.append(f'<div style="flex: 1; min-width: 16px; height: 2px; background: {line_color}; margin: 0 10px;"></div>')
 
     html_parts.append('</div>')
     st.markdown("".join(html_parts), unsafe_allow_html=True)

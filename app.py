@@ -37,10 +37,10 @@ st.set_page_config(
     page_title="ATLAS-Risk Security Platform",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for Sleek Modern Sidebar & Global Styling
+# Custom CSS for Sleek Modern Sidebar & Global Styling (Fully Responsive for Mobile/Tablet/Desktop)
 st.markdown("""
 <style>
     /* Font family */
@@ -98,7 +98,7 @@ st.markdown("""
         color: #0f172a !important;
     }
 
-    /* Active Nav Button (Lavender pill matching Image 2) */
+    /* Active Nav Button (Lavender pill) */
     [data-testid="stSidebar"] button[kind="primary"] {
         background-color: #eef2ff !important;
         color: #4f46e5 !important;
@@ -150,26 +150,17 @@ st.markdown("""
         background-color: #f8fafc !important;
     }
 
-    /* Step 1: Card Overlay for Direct Card Clicking */
-    div[data-testid="column"]:has(.guided-card-wrapper) {
-        position: relative !important;
+    /* Horizontal Radio Selector wrapping cleanly across viewports */
+    div[role="radiogroup"] {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
     }
-    div[data-testid="column"]:has(.guided-card-wrapper) div.stButton {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        z-index: 20 !important;
-    }
-    div[data-testid="column"]:has(.guided-card-wrapper) div.stButton button {
-        width: 100% !important;
-        height: 100% !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    div[role="radiogroup"] > label {
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-right: 0 !important;
     }
 
     /* Step 2: Change button styled as clean hyperlink */
@@ -207,6 +198,98 @@ st.markdown("""
         border: 1px solid #cbd5e1 !important;
         color: #334155 !important;
         font-weight: 500 !important;
+    }
+
+    /* Home View 3-Step Process Bar Desktop Layout */
+    .atlas-process-bar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        align-items: center;
+        gap: 14px;
+    }
+
+    /* -------------------------------------------------------------
+       RESPONSIVE MEDIA QUERIES FOR TABLET & MOBILE VIEWPORTS
+       ------------------------------------------------------------- */
+    @media (max-width: 768px) {
+        /* Mobile padding adjustments */
+        .stMainBlockContainer,
+        div[data-testid="stMain"] > div:first-child,
+        .main .block-container {
+            padding-top: 1.2rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 0.9rem !important;
+            padding-right: 0.9rem !important;
+        }
+
+        /* On mobile, ensure sidebar does NOT intercept pointer events or block clicks when not actively interacting */
+        section[data-testid="stSidebar"] {
+            z-index: 100 !important;
+        }
+        section[data-testid="stSidebar"][aria-expanded="false"] {
+            display: none !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+        section[data-testid="stSidebar"][aria-expanded="true"] {
+            width: 78% !important;
+            max-width: 300px !important;
+            box-shadow: 0 0 25px rgba(0,0,0,0.4) !important;
+            pointer-events: auto !important;
+        }
+
+        /* Responsive Columns: Stack gracefully on phones */
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 12px !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+
+        /* Process bar stacks vertically on mobile */
+        .atlas-process-bar {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+            padding: 14px 16px !important;
+        }
+        .atlas-process-divider {
+            display: none !important;
+        }
+
+        /* Touch friendly radio options */
+        div[role="radiogroup"] > label {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            margin-bottom: 4px !important;
+        }
+
+        /* Responsive headlines */
+        h1 {
+            font-size: 1.85rem !important;
+            line-height: 1.25 !important;
+        }
+        h2 {
+            font-size: 1.35rem !important;
+        }
+
+        /* Metric cards padding */
+        div[data-testid="metric-container"] {
+            padding: 10px !important;
+        }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+        /* Tablet: 2 columns per row */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 45% !important;
+            min-width: 45% !important;
+        }
+        .atlas-process-bar {
+            gap: 8px !important;
+            padding: 14px 18px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
