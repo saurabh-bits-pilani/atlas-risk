@@ -1,43 +1,77 @@
-from http.server import BaseHTTPRequestHandler
+import os
 import json
+from http.server import BaseHTTPRequestHandler
+
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        files_dict = {}
+        file_paths = [
+            "app.py",
+            "app_v01.py",
+            "questionnaire.py",
+            "questionnaire_ui.py",
+            "evidence.py",
+            "threat_mapper.py",
+            "risk_engine.py",
+            "test_runner.py",
+            "report.py",
+            "models/experiment_models.py",
+            "engines/threat_mapper.py",
+            "engines/test_runner.py",
+            "engines/risk_engine.py",
+            "engines/evaluation_engine.py",
+            "engines/evidence_evaluator_v04.py",
+            "engines/baseline_comparator.py",
+            "engines/persistence_engine.py",
+            "engines/multi_scenario_runner.py",
+            "reports/report_v02.py",
+            "reports/report_v03.py",
+            "data/benchmark_catalogue.json",
+            "data/test_cases.json",
+            "mappings/owasp_2025.json",
+            "mappings/atlas_v4.json"
+        ]
+
+        for rel_path in file_paths:
+            full_p = os.path.join(base_dir, rel_path)
+            if os.path.exists(full_p):
+                with open(full_p, "r", encoding="utf-8") as f:
+                    files_dict[rel_path] = f.read()
+
+        stlite_files_json = json.dumps(files_dict)
+
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ ATLAS-Risk v0.4.0-dev — Enterprise AI Risk Assessment</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.50.0/build/stlite.css" />
+    <style>
+        html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background-color: #0e1117; overflow: hidden; }}
+        #root {{ width: 100%; height: 100%; }}
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.50.0/build/stlite.js"></script>
+    <script>
+        stlite.mount({{
+            entrypoint: "app.py",
+            files: {stlite_files_json}
+        }}, document.getElementById("root"));
+    </script>
+</body>
+</html>"""
+
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
-        html_content = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>ATLAS-Risk v0.4.0-dev — Enterprise AI Risk Assessment</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; line-height: 1.6; background-color: #0e1117; color: #ffffff; }
-                .container { max-width: 800px; margin: 0 auto; background: #161b22; padding: 30px; border-radius: 12px; border: 1px solid #30363d; }
-                h1 { color: #58a6ff; }
-                .badge { display: inline-block; background: #238636; color: #fff; padding: 4px 12px; border-radius: 16px; font-weight: bold; font-size: 0.9em; }
-                .btn { display: inline-block; background: #238636; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; margin-top: 20px; }
-                .btn:hover { background: #2ea043; }
-                code { background: #21262d; padding: 2px 6px; border-radius: 4px; color: #79c0ff; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🛡️ ATLAS-Risk v0.4.0-dev</h1>
-                <p><span class="badge">BETA RELEASE</span></p>
-                <p>Welcome to the <strong>ATLAS-Risk Security Assessment Platform</strong> repository deployment.</p>
-                <hr style="border-color: #30363d;">
-                <h3>📌 Deployment Options & Access Points</h3>
-                <ul>
-                    <li><strong>Interactive Streamlit App:</strong> Deploy natively on <a href="https://share.streamlit.io" style="color: #58a6ff;">Streamlit Community Cloud</a> (Repository: <code>saurabh-bits-pilani/atlas-risk</code>).</li>
-                    <li><strong>GitHub Repository:</strong> <a href="https://github.com/saurabh-bits-pilani/atlas-risk" style="color: #58a6ff;">github.com/saurabh-bits-pilani/atlas-risk</a></li>
-                    <li><strong>Local Run:</strong> <code>streamlit run app.py</code></li>
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
         self.wfile.write(html_content.encode('utf-8'))
         return
+
 
 app = handler
