@@ -1,12 +1,13 @@
 """
 ATLAS-Risk: Professional Guided Security & Posture Assessment Platform.
 Main Application Entry Point.
-Navigation:
-- Home (Clean plain-language dashboard with Start Assessment CTA & Recent Runs)
-- New Assessment (Guided 4-Step Wizard: What to check → App details → Checks & permission → Results)
-- Reports (Persistent, searchable archive of past assessments with real PDF/HTML downloads)
-- Research & Benchmarks (Preserved historical v0.2/v0.3 experiment platform and ground-truth datasets)
-- Settings (Connection preferences, gateway endpoints, and historical archives)
+Implements modern, human-centered UI/UX with smooth sidebar navigation:
+- 🏠 Home (Matching user specification with Hero, 3-Step Process Flow, What can you assess, and Recent reports)
+- ➕ New assessment (Guided 4-Step Wizard: What to check → App details → Checks & permission → Results)
+- 📄 Reports (Persistent, searchable archive of past assessments with real PDF/HTML downloads)
+- 📊 Research & benchmarks (Preserved historical v0.2/v0.3 experiment platform and ground-truth datasets)
+- ⚙️ Settings (Connection preferences, gateway endpoints, and historical archives)
+- ❓ Help (Practical guidance and scope overview)
 """
 
 import streamlit as st
@@ -16,6 +17,7 @@ from datetime import datetime, timezone
 
 from guided_assessment_ui import render_guided_assessment_wizard
 from assessment_results_view import render_assessment_results
+from home_view import render_home_page
 from engines.assessment_store import AssessmentStore
 from engines.report_exporter import export_assessment_pdf_and_html
 
@@ -28,60 +30,118 @@ from local_ai_testing_ui import render_local_ai_testing_tab
 st.set_page_config(
     page_title="ATLAS-Risk Security Platform",
     page_icon="🛡️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# Custom CSS for Sleek Modern Sidebar & Global Styling
+st.markdown("""
+<style>
+    /* Font family */
+    html, body, [class*="css"] {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-def render_home_page():
-    st.title("Understand your app's risks.")
-    st.write("Check what we can access. See what needs attention and what remains untested.")
+    /* Clean header */
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
+    }
 
-    col_cta1, col_cta2, col_space = st.columns([1.6, 1.6, 3])
-    with col_cta1:
-        if st.button("🚀 Start an assessment", type="primary", use_container_width=True):
-            st.session_state.app_nav = "➕ New Assessment"
-            st.session_state.wizard_step = 1
-            st.session_state.current_completed_record = None
-            st.rerun()
-    with col_cta2:
-        if st.button("📄 View sample report", use_container_width=True):
-            store = AssessmentStore()
-            sample = store.get_sample_report()
-            st.session_state.opened_report_id = sample["id"]
-            st.session_state.app_nav = "📑 Reports"
-            st.rerun()
+    /* Sidebar Background */
+    [data-testid="stSidebar"] {
+        background-color: #f8fafc !important;
+        border-right: 1px solid #e2e8f0 !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 1.25rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
 
-    st.markdown("---")
+    /* Sleek Navigation Button Styling in Sidebar */
+    [data-testid="stSidebar"] button {
+        text-align: left !important;
+        justify-content: flex-start !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 9px 14px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        margin-bottom: 3px !important;
+        width: 100% !important;
+        transition: all 0.15s ease-in-out !important;
+        box-shadow: none !important;
+    }
 
-    # Recent Assessments History
-    st.subheader("Recent Assessments")
-    store = AssessmentStore()
-    assessments = store.list_assessments()
+    /* Inactive Nav Button */
+    [data-testid="stSidebar"] button[kind="secondary"] {
+        background-color: transparent !important;
+        color: #475569 !important;
+    }
+    [data-testid="stSidebar"] button[kind="secondary"]:hover {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
 
-    # Filter out sample unless requested
-    user_assessments = [a for a in assessments if a["id"] != "SAMPLE-HYBRID-001"]
+    /* Active Nav Button (Lavender pill matching Image 2) */
+    [data-testid="stSidebar"] button[kind="primary"] {
+        background-color: #eef2ff !important;
+        color: #4f46e5 !important;
+        font-weight: 600 !important;
+        border: 1px solid #e0e7ff !important;
+    }
+    [data-testid="stSidebar"] button[kind="primary"]:hover {
+        background-color: #e0e7ff !important;
+        color: #4338ca !important;
+    }
 
-    if not user_assessments:
-        st.info("ℹ️ No assessments recorded yet. Click **Start an assessment** above to begin your first review.")
-    else:
-        for rec in user_assessments[:5]:
-            with st.container():
-                c_info, c_status, c_act = st.columns([3, 1.2, 1.5])
-                with c_info:
-                    st.markdown(f"**{rec['name']}** (`{rec['target_input']}`)")
-                    st.caption(f"Date: {rec['created_at'][:19].replace('T', ' ')} UTC | ID: `{rec['id']}`")
-                with c_status:
-                    stat = rec.get("status", "COMPLETE")
-                    stat_icon = "🟢" if stat == "COMPLETE" else ("🟡" if stat == "PARTIAL" else "🔴")
-                    st.markdown(f"**{stat_icon} {stat}**")
-                    issues_cnt = rec.get("counts", {}).get("issues", 0)
-                    st.caption(f"{issues_cnt} issue(s) observed")
-                with c_act:
-                    if st.button("Open Report", key=f"open_home_{rec['id']}"):
-                        st.session_state.opened_report_id = rec["id"]
-                        st.session_state.app_nav = "📑 Reports"
-                        st.rerun()
-                st.markdown("---")
+    /* Content Area Primary CTA Buttons */
+    .stMainBlockContainer button[kind="primary"],
+    div[data-testid="stMain"] button[kind="primary"] {
+        background-color: #4f46e5 !important;
+        border-color: #4f46e5 !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    }
+    .stMainBlockContainer button[kind="primary"]:hover,
+    div[data-testid="stMain"] button[kind="primary"]:hover {
+        background-color: #4338ca !important;
+        border-color: #4338ca !important;
+    }
+
+    /* Content Area Secondary Buttons */
+    .stMainBlockContainer button[kind="secondary"],
+    div[data-testid="stMain"] button[kind="secondary"] {
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+    }
+    .stMainBlockContainer button[kind="secondary"]:hover,
+    div[data-testid="stMain"] button[kind="secondary"]:hover {
+        border-color: #94a3b8 !important;
+        background-color: #f8fafc !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+def navigate_to(tab_name: str, extra_state: dict = None):
+    """Smooth navigation helper ensuring instant state synchronization."""
+    if extra_state:
+        for k, v in extra_state.items():
+            if k == "wizard_step":
+                st.session_state["wizard_step"] = v
+            elif k == "target_type":
+                if "wizard_inputs" not in st.session_state:
+                    st.session_state["wizard_inputs"] = {}
+                st.session_state["wizard_inputs"]["target_type"] = v
+            else:
+                st.session_state[k] = v
+    st.session_state["app_nav"] = tab_name
+    st.rerun()
 
 
 def render_reports_page():
@@ -100,7 +160,7 @@ def render_reports_page():
                 st.rerun()
             return
 
-    st.title("📑 Assessment Reports")
+    st.title("📄 Assessment Reports")
     st.caption("Permanent, immutable archive of completed and partial assessment runs.")
 
     all_recs = store.list_assessments()
@@ -144,7 +204,7 @@ def render_reports_page():
                     st.session_state.opened_report_id = rec["id"]
                     st.rerun()
             with c4:
-                # Fast direct download
+                # Direct download button
                 full_rec = store.get_assessment(rec["id"])
                 if full_rec:
                     try:
@@ -200,44 +260,94 @@ def render_settings_page():
         render_v01_app()
 
 
-def main():
-    # Primary Main Navigation
-    if "app_nav" not in st.session_state:
-        st.session_state.app_nav = "🏠 Home"
+def render_help_page():
+    st.title("❓ Help & Assessment Guide")
+    st.caption("Everything you need to know about how ATLAS-Risk evaluates applications.")
 
-    nav_options = [
-        "🏠 Home",
-        "➕ New Assessment",
-        "📑 Reports",
-        "🔬 Research & Benchmarks",
-        "⚙️ Settings"
+    st.markdown("""
+    ### 🛡️ How ATLAS-Risk Works
+    ATLAS-Risk provides honest, evidence-based security and quality assessments designed specifically for applications built through vibe coding, AI prototypes, and public web services.
+
+    #### The Assessment Process
+    1. **Choose your app**: Select whether you are reviewing a public website, GitHub code repository, AI chatbot endpoint, or answering architecture questions.
+    2. **Review the checks**: We present what will be checked, what cannot be assessed without deeper credentials, and required permissions.
+    3. **Get your report**: Receive a publication-grade report with verified findings, practical code fixes, and download options in PDF and HTML.
+
+    #### Our Product Principles
+    - **Assess what is publicly observable**: We do not fail an assessment simply because some protected areas require credentials.
+    - **No arbitrary scores**: We report honest counts (*Issues Observed*, *No Issue Observed*, *Unassessed / Blocked*, *Not Applicable*) instead of made-up percentage scores.
+    - **Non-intrusive by default**: No invasive probes are ever dispatched against unauthorized targets.
+    """)
+
+    st.markdown("---")
+    if st.button("🚀 Start an assessment now", type="primary"):
+        navigate_to("➕ New assessment", {"wizard_step": 1})
+
+
+def main():
+    # Sidebar Brand Header matching user mock (Shield logo + ATLAS-Risk)
+    st.sidebar.markdown("""
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 6px 14px 6px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+        <span style="font-size: 24px;">🛡️</span>
+        <span style="font-size: 19px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">ATLAS-Risk</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Initialize navigation state
+    if "app_nav" not in st.session_state:
+        st.session_state["app_nav"] = "🏠 Home"
+
+    current_nav = st.session_state["app_nav"]
+
+    # Main Navigation Items
+    primary_nav_items = [
+        ("🏠 Home", "🏠 Home"),
+        ("➕ New assessment", "➕ New assessment"),
+        ("📄 Reports", "📄 Reports"),
+        ("📊 Research & benchmarks", "📊 Research & benchmarks"),
     ]
 
-    selected_nav = st.sidebar.radio(
-        "Navigation",
-        nav_options,
-        index=nav_options.index(st.session_state.app_nav) if st.session_state.app_nav in nav_options else 0
-    )
-    st.session_state.app_nav = selected_nav
+    for label, target_key in primary_nav_items:
+        is_active = (current_nav == target_key or (target_key == "➕ New assessment" and current_nav == "➕ New Assessment"))
+        btn_type = "primary" if is_active else "secondary"
+        if st.sidebar.button(label, key=f"nav_btn_{target_key}", type=btn_type, use_container_width=True):
+            if current_nav != target_key:
+                st.session_state["app_nav"] = target_key
+                st.rerun()
 
-    st.sidebar.markdown("---")
-    st.sidebar.caption("ATLAS-Risk Platform • Build `64b7438` (Verified)")
+    # Vertical spacer to push settings and help to bottom
+    st.sidebar.markdown("<div style='height: 180px;'></div>", unsafe_allow_html=True)
 
-    # Route according to selection
-    if selected_nav == "🏠 Home":
-        render_home_page()
-    elif selected_nav == "➕ New Assessment":
+    # Bottom Navigation Items
+    bottom_nav_items = [
+        ("⚙️ Settings", "⚙️ Settings"),
+        ("❓ Help", "❓ Help"),
+    ]
+
+    for label, target_key in bottom_nav_items:
+        is_active = (current_nav == target_key)
+        btn_type = "primary" if is_active else "secondary"
+        if st.sidebar.button(label, key=f"nav_btn_{target_key}", type=btn_type, use_container_width=True):
+            if current_nav != target_key:
+                st.session_state["app_nav"] = target_key
+                st.rerun()
+
+    st.sidebar.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+    st.sidebar.caption("ATLAS-Risk Platform • Build `64b7438`")
+
+    # Route view according to selection
+    if current_nav == "🏠 Home":
+        render_home_page(on_navigate=navigate_to)
+    elif current_nav in ("➕ New assessment", "➕ New Assessment"):
         render_guided_assessment_wizard()
-    elif selected_nav == "📑 Reports":
+    elif current_nav in ("📄 Reports", "📑 Reports"):
         render_reports_page()
-    elif selected_nav == "🔬 Research & Benchmarks":
-        # Render preserved v0.2/v0.3 research platform
+    elif current_nav in ("📊 Research & benchmarks", "🔬 Research & Benchmarks"):
         from app_v01 import render_v01_app
         from reports.report_v02 import ExperimentReportGenerator
-        st.title("🔬 Research & Benchmark Platform (v0.3.0 Freeze)")
+        st.title("📊 Research & Benchmark Platform (v0.3.0 Freeze)")
         st.caption("Preserved empirical datasets, ground-truth benchmarks, and ASR experimental platform.")
         st.info("All frozen experiment runs and benchmark catalogues remain preserved in `data/runs/`.")
-        # Load targets and benchmark data
         base_dir = os.path.dirname(os.path.abspath(__file__))
         path_cat = os.path.join(base_dir, "data", "benchmark_catalogue.json")
         if os.path.exists(path_cat):
@@ -245,8 +355,10 @@ def main():
                 cat_data = json.load(f)
                 st.write(f"• **Benchmark Test Cases:** {len(cat_data.get('test_cases', []))}")
                 st.write(f"• **Framework Alignment:** OWASP Top 10 for LLM (2025) & MITRE ATLAS v4.0")
-    elif selected_nav == "⚙️ Settings":
+    elif current_nav == "⚙️ Settings":
         render_settings_page()
+    elif current_nav == "❓ Help":
+        render_help_page()
 
 
 if __name__ == "__main__":
