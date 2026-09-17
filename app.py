@@ -12,6 +12,7 @@ from app_v01 import render_v01_app
 from questionnaire_ui import render_interactive_questionnaire_app
 from local_ai_testing_ui import render_local_ai_testing_tab
 from executive_report_ui import render_executive_report_tab
+from assess_my_app_ui import render_assess_my_app_tab
 from engines.threat_mapper import ThreatMapper
 from engines.test_runner import TestRunner
 from engines.evaluation_engine import EvaluationEngine
@@ -329,6 +330,7 @@ def main():
     mode = st.sidebar.radio(
         "Application Platform Mode",
         [
+            "🌐 Assess My App (Public Review)",
             "📊 Executive Management Report",
             "🖥️ Local AI Testing (Ollama Live Model)",
             "🛡️ New AI System Assessment Mode (v0.4.0-beta)",
@@ -338,7 +340,9 @@ def main():
     )
     st.sidebar.markdown("---")
 
-    if "Executive Management Report" in mode:
+    if "Assess My App" in mode:
+        render_assess_my_app_tab()
+    elif "Executive Management Report" in mode:
         render_executive_report_tab()
     elif "Local AI Testing" in mode:
         render_local_ai_testing_tab()
