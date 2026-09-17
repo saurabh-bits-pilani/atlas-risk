@@ -335,12 +335,30 @@ def render_step_2():
             if gateway_online:
                 st.success(f"🟢 Connected to Ollama Gateway at `{inp['url']}` ({len(detected_models)} model(s) available)")
             else:
-                st.info(
-                    "💡 **Auditing a local Ollama model?**\n"
-                    "1. Start Ollama: `ollama run llama3.2:1b`\n"
-                    "2. Start Gateway: `python ollama_gateway.py`\n"
-                    "*(If using the cloud-hosted app, expose port 8080 via `ngrok http 8080` or run ATLAS-Risk locally).*"
-                )
+                with st.expander("📖 Step-by-Step: How to connect your local Ollama to this cloud website", expanded=True):
+                    st.markdown("""
+**Follow these 3 quick terminal commands on your computer:**
+
+**Step 1: Make sure Ollama is running**
+```bash
+ollama run llama3.2:1b
+```
+*(Or keep the daemon active: `ollama serve`)*
+
+**Step 2: Start the ATLAS-Risk Security Gateway**
+In your repository directory, open a new terminal and run:
+```bash
+python ollama_gateway.py
+```
+*(You will see confirmation: `🛡️ ATLAS-Risk Ollama Gateway Online (Port 8080)`)*
+
+**Step 3: Create a public tunnel with ngrok**
+In another terminal, run:
+```bash
+ngrok http 8080
+```
+Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste it into the **Endpoint address** field above!
+""")
 
             st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
