@@ -7,3 +7,5 @@ venv/
 .streamlit/secrets.toml
 .vercel
 .env*
+data/exports/
+scratch_*.pdf
