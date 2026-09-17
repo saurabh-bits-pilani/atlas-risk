@@ -54,18 +54,24 @@ class TestRunner:
             repeats_per_test=repeats_per_test
         )
 
-        app_map = {app["owasp_code"]: app for app in applicability_list}
+        app_map_family = {app["threat_family"]: app for app in applicability_list}
+        app_map_owasp = {app["owasp_code"]: app for app in applicability_list}
 
         # For deterministic benchmarks, repeated identical runs are marked with replay metadata
         effective_repeats = 1 if target_type == "deterministic_benchmark" else repeats_per_test
 
         for test in self.test_cases:
+            tf = test.get("threat_family", "")
             owasp_code = test.get("expected_owasp", "LLM01")
-            app_info = app_map.get(owasp_code, {
+            app_info = app_map_family.get(tf) or app_map_owasp.get(owasp_code, {
                 "is_applicable": True,
                 "owasp": {"id": f"{owasp_code}:2025", "name": "General Threat"},
                 "atlas": {"id": test.get("expected_atlas", "AML.T0051"), "name": "General Technique"}
             })
+
+            # Exclude test execution for non-applicable threats
+            if not app_info.get("is_applicable", True):
+                continue
 
             # Execute predefined test assertion against paired mock response vector
             if "Hardened" in configuration_variant:
@@ -158,15 +164,21 @@ class TestRunner:
             repeats_per_test=repeats_per_test
         )
 
-        app_map = {app["owasp_code"]: app for app in applicability_list}
+        app_map_family = {app["threat_family"]: app for app in applicability_list}
+        app_map_owasp = {app["owasp_code"]: app for app in applicability_list}
 
         for test in self.test_cases:
+            tf = test.get("threat_family", "")
             owasp_code = test.get("expected_owasp", "LLM01")
-            app_info = app_map.get(owasp_code, {
+            app_info = app_map_family.get(tf) or app_map_owasp.get(owasp_code, {
                 "is_applicable": True,
                 "owasp": {"id": f"{owasp_code}:2025", "name": "General Threat"},
                 "atlas": {"id": test.get("expected_atlas", "AML.T0051"), "name": "General Technique"}
             })
+
+            # Exclude test execution for non-applicable threats
+            if not app_info.get("is_applicable", True):
+                continue
 
             prompt_input = test.get("test_vector_prompt", "")
             payload = json.dumps({"prompt": prompt_input, "test_id": test["test_id"]}).encode("utf-8")

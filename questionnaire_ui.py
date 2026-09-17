@@ -21,8 +21,8 @@ from reports.report_v02 import ExperimentReportGenerator
 
 
 def render_interactive_questionnaire_app():
-    st.title("🛡️ ATLAS-Risk v0.4.0-dev: New AI System Assessment")
-    st.caption("Interactive Application Security Assessment Workflow — Questionnaire → Profile → Threat Applicability → Safety Gate → Active Test → Multi-Attribute Verdicts → Retest")
+    st.title("🛡️ ATLAS-Risk v0.4.0-beta: New AI System Assessment")
+    st.caption("Interactive Application Security Assessment Workflow (v0.4.0-beta) — Questionnaire → Profile → Threat Applicability → Safety Gate → Active Test → Multi-Attribute Verdicts → Retest")
 
     mapper = ThreatMapper()
 
@@ -85,6 +85,10 @@ def render_interactive_questionnaire_app():
         if submitted:
             st.session_state.form_answers = form_values
             st.session_state.system_profile = build_system_profile(form_values)
+            # Clear previous assessment results on new profile submission to prevent mixing findings
+            for key in ["v04_exp_rec", "v04_eval_metrics", "v04_verdict_records", "v04_verdict_counts", "v04_exec_mode"]:
+                if key in st.session_state:
+                    del st.session_state[key]
 
         profile = st.session_state.system_profile
         meta = profile["system_metadata"]
@@ -150,6 +154,32 @@ def render_interactive_questionnaire_app():
                 "3. **Agent Excessive Agency Guardrails:** Enforce mandatory Human-in-the-Loop approval for write/delete tools.\n"
                 "4. **Unbounded Consumption Budgeting:** Set hard per-user API rate limits and daily token spend caps."
             )
+
+            # Downloadable Passive Assessment Report
+            passive_md = (
+                f"# 🛡️ PASSIVE ASSESSMENT REPORT (v0.4.0-beta)\n\n"
+                f"**System Name:** `{meta['name']}`  \n"
+                f"**Business Impact:** `{meta['business_impact']}`  \n"
+                f"**Target Exposure:** `{q_prof['q1_target_exposure']}`  \n"
+                f"**Assessment Status:** `PASSIVE PROFILING ONLY (Active Probing Unauthorized)`\n\n"
+                f"---\n\n"
+                f"## 🔴 Applicable Threat Families ({len(applicable_threats)})\n"
+                + "\n".join([f"- **{a['threat_family']}** ({a['owasp_code']} / {a['atlas_code']}): {a['rationale']}" for a in applicable_threats]) +
+                f"\n\n## 🟢 Excluded / Non-Applicable Threat Vectors ({len(non_applicable_threats)})\n"
+                + "\n".join([f"- **{a['threat_family']}** ({a['owasp_code']} / {a['atlas_code']}): {a['rationale']}" for a in non_applicable_threats]) +
+                f"\n\n---\n\n"
+                f"## 📋 Recommended Security Controls\n"
+                f"1. **Prompt Injection Boundary Safeguards:** Implement strict system prompt delimiters and input sanitization.\n"
+                f"2. **Indirect RAG Context Filtering:** Deploy document-level RBAC and sanitization filters on vector retrieval.\n"
+                f"3. **Agent Excessive Agency Guardrails:** Enforce mandatory Human-in-the-Loop approval for write/delete tools.\n"
+                f"4. **Unbounded Consumption Budgeting:** Set hard per-user API rate limits and daily token spend caps.\n"
+            )
+            st.download_button(
+                label="📥 Download PASSIVE ASSESSMENT REPORT (.md)",
+                data=passive_md,
+                file_name=f"PASSIVE_ASSESSMENT_REPORT_{meta['name'].replace(' ', '_')}.md",
+                mime="text/markdown"
+            )
         else:
             st.success(
                 "✅ **ACTIVE TESTING AUTHORIZED:** Explicit authorization confirmed in system profile questionnaire."
@@ -158,10 +188,21 @@ def render_interactive_questionnaire_app():
             # Pre-execution Static Probe Preview List
             test_runner = TestRunner()
             with st.expander("🔍 View Pre-Execution Static Assessment Probe Preview (Audit List)", expanded=False):
-                st.markdown("The following static, version-controlled probes will be evaluated against the target:")
+                st.markdown(
+                    "**Assessment Scope, Resource Limits, & Safety Assurance:**\n\n"
+                    "• **Repeats Per Test:** 3 iterations (Simulated Mode) / 1 iteration (Live HTTP Mode)\n\n"
+                    "• **Resource Limits:** 5-second HTTP request timeout, maximum 500 token prompt request budget per test vector\n\n"
+                    "• **Non-Destructive Safety Assurance:** `TEST-DOS-001` evaluates system token ceiling caps via standard query prompts without network socket DoS, payload fuzzing, or destructive attacks."
+                )
+                st.markdown("---")
+                st.markdown("The following static, version-controlled probes will be evaluated against applicable threats:")
                 for idx, tc in enumerate(test_runner.test_cases, 1):
-                    st.markdown(f"**Probe #{idx}:** `{tc['test_id']}` — {tc['name']} ({tc.get('expected_owasp', 'LLM01')} / {tc.get('expected_atlas', 'AML.T0051')})")
-                    st.caption(f"Prompt: {tc.get('test_vector_prompt', '')[:100]}...")
+                    owasp_code = tc.get("expected_owasp", "LLM01")
+                    tf = tc.get("threat_family", "")
+                    app_info = next((a for a in applicability if a["threat_family"] == tf or a["owasp_code"] == owasp_code), {"is_applicable": True})
+                    status_str = "🔴 APPLICABLE (Will Execute)" if app_info["is_applicable"] else "🟢 EXCLUDED (Non-Applicable Vector)"
+                    st.markdown(f"**Probe #{idx}:** `{tc['test_id']}` — {tc['name']} ({tc.get('expected_owasp', 'LLM01')} / {tc.get('expected_atlas', 'AML.T0051')}) — **{status_str}**")
+                    st.caption(f"Exact Prompt Input Vector: `{tc.get('test_vector_prompt', '')}`")
 
             # Mode-specific gating UI
             can_execute = False
@@ -317,6 +358,32 @@ def render_interactive_questionnaire_app():
                         st.code(ex.raw_response)
                         st.markdown(f"• **Risk Score:** `{ex.computed_risk_score:.4f}` ({ex.severity_rating})")
 
+                # Step 5 Downloadable Report
+                report_prefix = "SIMULATED ASSESSMENT REPORT" if "SIMULATED" in saved_mode else "LIVE ASSESSMENT REPORT"
+                active_report_md = (
+                    f"# 🛡️ {report_prefix} (v0.4.0-beta)\n\n"
+                    f"**System Name:** `{meta['name']}` | **Execution Mode:** `{saved_mode}`  \n"
+                    f"**Total Executions:** `{eval_metrics['total_executions']}` | **Vulnerabilities Observed:** `{verdict_counts['vulnerability_observed']}`  \n"
+                    f"**Safe / Blocked:** `{verdict_counts['no_vulnerability_observed']}` | **Inconclusive / Review:** `{verdict_counts['inconclusive']}`\n\n"
+                    f"---\n\n"
+                    f"## 📊 Multi-Attribute Findings Summary\n\n"
+                    + "\n".join([
+                        f"### {vr['verdict']} — {vr['execution'].test_name} ({vr['execution'].test_id})\n"
+                        f"- **OWASP / ATLAS:** {vr['execution'].owasp_mapping.get('id', '')} / {vr['execution'].atlas_mapping.get('id', '')}\n"
+                        f"- **Rationale:** {vr['rationale']}\n"
+                        f"- **Prompt Input:** `{vr['execution'].prompt_input}`\n"
+                        f"- **Raw Target Response:** `{vr['execution'].raw_response}`\n"
+                        f"- **Risk Score:** `{vr['execution'].computed_risk_score:.4f}` ({vr['execution'].severity_rating})\n"
+                        for vr in verdict_records
+                    ]) + "\n"
+                )
+                st.download_button(
+                    label=f"📥 Download {report_prefix} (.md)",
+                    data=active_report_md,
+                    file_name=f"{report_prefix.replace(' ', '_')}_{meta['name'].replace(' ', '_')}.md",
+                    mime="text/markdown"
+                )
+
                 # Step 6: Retest & Post-Mitigation Verification Workflow
                 st.markdown("---")
                 st.subheader("🔁 Step 6: Post-Mitigation Verification Workflow")
@@ -355,24 +422,37 @@ def render_interactive_questionnaire_app():
                     st.info(
                         "⚡ **LIVE RETEST (Customer Post-Remediation Verification):**\n\n"
                         "After deploying system prompt guardrails, RAG document filters, or agent authorization checks to your live target endpoint, "
-                        "enter your updated endpoint URL below to re-assess live posture."
+                        "confirm all 4 scope verification checks below to re-assess live posture."
                     )
 
-                    retest_url = st.text_input("Remediated Target Endpoint URL", value=q_prof.get("app_url", "https://api.target.internal/v1/chat-remediated"))
-                    confirm_retest_auth = st.checkbox("Confirm explicit authorization for live post-remediation retest.")
+                    st.markdown("### 🛡️ Live Retest Scope Verification Card")
+                    col_rt1, col_rt2 = st.columns(2)
+                    with col_rt1:
+                        rt_chk1 = st.checkbox("1. Owner Authorization confirmed for remediated target endpoint.")
+                        rt_chk2 = st.checkbox("2. Remediated Target URL specified & endpoint within approved boundaries.")
+                    with col_rt2:
+                        rt_chk3 = st.checkbox("3. Probe Scope restricted to controlled static assessment inputs.")
+                        rt_chk4 = st.checkbox("4. Static Test Suite confirmed (Zero zero-day/fuzzing/DoS payloads).")
 
-                    if st.button("⚡ Execute Live Authorized Retest") and confirm_retest_auth:
+                    retest_url = st.text_input("Remediated Target Endpoint URL", value=q_prof.get("app_url", "https://api.target.internal/v1/chat-remediated"))
+
+                    can_live_retest = rt_chk1 and rt_chk2 and rt_chk3 and rt_chk4
+
+                    if not can_live_retest:
+                        st.warning("⚠️ Scope Verification Incomplete: Check all 4 boxes above to enable Live Authorized Retest.")
+
+                    if st.button("⚡ Execute Live Authorized Retest", disabled=not can_live_retest):
                         with st.spinner("Executing post-remediation live probe suite against target..."):
-                            live_retest_exp = test_runner.run_experiment(
+                            live_retest_exp = test_runner.run_live_http_experiment(
                                 experiment_id=f"RETEST-LIVE-{meta['name'].replace(' ', '-').upper()}",
                                 target_id="TARGET-USER-LIVE-RETEST",
                                 target_name=f"{meta['name']} (Live Retest)",
-                                target_type="stochastic_llm",
+                                target_endpoint_url=retest_url,
                                 configuration_variant="Live Post-Remediation Target",
                                 questionnaire_answers=q_prof,
                                 applicability_list=applicability,
                                 framework_versions=mapper.framework_versions,
-                                repeats_per_test=3
+                                repeats_per_test=1
                             )
                             retest_metrics = EvaluationEngine().evaluate_experiment(live_retest_exp)
                             st.success(

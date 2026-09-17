@@ -327,14 +327,14 @@ def main():
     mode = st.sidebar.radio(
         "Application Platform Mode",
         [
-            "🛡️ New AI System Assessment Mode (v0.4.0-dev)",
+            "🛡️ New AI System Assessment Mode (v0.4.0-beta)",
             "🔬 Research / Benchmark Mode (v0.3.0 Freeze)",
             "📜 v0.1 POC Baseline Mode"
         ]
     )
     st.sidebar.markdown("---")
 
-    if "v0.4.0-dev" in mode:
+    if "v0.4.0" in mode or "New AI System Assessment" in mode:
         render_interactive_questionnaire_app()
     elif "Research" in mode or "v0.2" in mode or "v0.3" in mode:
         render_v02_research_app()
