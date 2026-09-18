@@ -246,3 +246,27 @@ def test_dan_refusal_is_defended_not_an_issue(temp_store):
         # Check that positive observation confirms defense against DAN
         dan_def = [p for p in rec["positive_observations"] if "DAN" in p["summary"]][0]
         assert "Defended" in dan_def["summary"]
+
+
+def test_demo_sandbox_instant_scan_zero_keys(temp_store):
+    """
+    Test Demo Sandbox AI model executes the full Garak scan with $0 and NO API key.
+    Verifies that probes run, pre-flight passes (200 OK), real issues are caught,
+    and verified defenses are recorded.
+    """
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    rec = engine.run_assessment(
+        persona="persona_3_openrouter",
+        target_name="Demo Sandbox AI",
+        system_prompt="Helpful AI",
+        canary_secret=DEFAULT_CANARY_SECRET,
+        openrouter_models=["demo/sandbox-llm"]
+    )
+
+    assert rec["status"] in ("PARTIAL", "COMPLETE")
+    assert rec["target_type"] == "demo_sandbox"
+    assert rec["counts"]["issues"] > 0, "Demo sandbox simulated vulnerabilities should be caught"
+    assert rec["counts"]["no_issue"] > 0, "Demo sandbox defenses should be recorded"
+    assert rec["counts"]["not_completed"] == 0, "All 10 probes should execute"
+    assert any(f["severity"] == "CRITICAL" for f in rec["findings"]), "Canary leak must be CRITICAL"

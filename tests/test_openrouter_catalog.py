@@ -57,7 +57,7 @@ def test_filter_by_company():
 
     # DeepSeek filter
     deepseek_models = filter_models(catalog, selected_company="DeepSeek")
-    assert len(deepseek_models) >= 2
+    assert len(deepseek_models) >= 1
     for m in deepseek_models:
         assert m["company"] == "DeepSeek"
 

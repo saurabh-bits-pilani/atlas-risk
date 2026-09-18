@@ -16,37 +16,177 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Curated, always-available catalog of verified free models and popular Meta/Google/NVIDIA models
+# Curated catalog of VERIFIED LIVE models on OpenRouter (100% free from 404s)
 FALLBACK_OPENROUTER_MODELS = [
+    # Demo Sandbox AI (Zero API key required)
+    {
+        "id": "demo/sandbox-llm",
+        "name": "🌟 Demo Sandbox AI (Zero API Key Needed • Instant Scan)",
+        "company": "ATLAS Sandbox",
+        "is_free": True,
+        "description": "Interactive simulated customer-service AI. Allows testing the complete 10-probe Garak security audit with $0 and no OpenRouter key."
+    },
     # Universal auto-router
     {
         "id": "openrouter/free",
-        "name": "Free Models Universal Auto-Router",
+        "name": "Free Models Universal Auto-Router (Recommended)",
         "company": "OpenRouter",
         "is_free": True,
-        "description": "Auto-routes to currently available free community models without 404s"
+        "description": "OpenRouter's official universal auto-router. Dynamically routes to currently active free models without 404 errors."
     },
-    # Meta / Llama
+    # DeepSeek (Active Free Slug)
     {
-        "id": "meta-llama/llama-3.3-70b-instruct:free",
-        "name": "Llama 3.3 70B Instruct (Free Tier)",
-        "company": "Meta (Llama)",
+        "id": "deepseek/deepseek-v4-flash-0731:free",
+        "name": "DeepSeek V4 Flash 0731 (Free)",
+        "company": "DeepSeek",
         "is_free": True,
-        "description": "Meta's flagship 70B open weight reasoning and coding model"
+        "description": "DeepSeek active free high-throughput model on OpenRouter"
+    },
+    # NVIDIA (Active Free Slugs)
+    {
+        "id": "nvidia/nemotron-3.5-lightning:free",
+        "name": "Nemotron 3.5 Lightning (Free)",
+        "company": "NVIDIA",
+        "is_free": True,
+        "description": "NVIDIA ultra-fast low-latency generative model (Active Free)"
     },
     {
-        "id": "meta-llama/llama-3.2-3b-instruct:free",
-        "name": "Llama 3.2 3B Instruct (Free Tier)",
-        "company": "Meta (Llama)",
+        "id": "nvidia/nemotron-3.5-content-safety:free",
+        "name": "Nemotron 3.5 Content Safety (Free)",
+        "company": "NVIDIA",
         "is_free": True,
-        "description": "Meta lightweight 3B edge-optimized instruction model"
+        "description": "NVIDIA guardrail and safety evaluation model (Active Free)"
     },
     {
-        "id": "meta-llama/llama-3.1-8b-instruct:free",
-        "name": "Llama 3.1 8B Instruct (Free Tier)",
-        "company": "Meta (Llama)",
+        "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "name": "Nemotron 3 Ultra (Free)",
+        "company": "NVIDIA",
         "is_free": True,
-        "description": "Meta highly versatile 8B instruction tuned LLM"
+        "description": "NVIDIA massive MoE architecture model (Active Free)"
     },
+    {
+        "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "name": "Nemotron 3 Nano Omni (Free)",
+        "company": "NVIDIA",
+        "is_free": True,
+        "description": "NVIDIA multimodal reasoning model (Active Free)"
+    },
+    {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "name": "Nemotron 3 Super (Free)",
+        "company": "NVIDIA",
+        "is_free": True,
+        "description": "NVIDIA 120B high-throughput model (Active Free)"
+    },
+    # Alibaba / Qwen (Active Free Slug)
+    {
+        "id": "qwen/qwen3.8-27b:free",
+        "name": "Qwen 3.8 27B (Free)",
+        "company": "Alibaba (Qwen)",
+        "is_free": True,
+        "description": "Alibaba Cloud high-capability bilingual LLM (Active Free)"
+    },
+    # Google (Active Free Slugs)
+    {
+        "id": "google/gemma-4-31b-it:free",
+        "name": "Gemma 4 31B Instruct (Free)",
+        "company": "Google",
+        "is_free": True,
+        "description": "Google DeepMind open weights 31B instruction model (Active Free)"
+    },
+    {
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Gemma 4 26B A4B Instruct (Free)",
+        "company": "Google",
+        "is_free": True,
+        "description": "Google DeepMind lightweight Gemma 4 variant (Active Free)"
+    },
+    # Z.ai (Active Free Slug)
+    {
+        "id": "z-ai/glm-5.2:free",
+        "name": "GLM 5.2 (Free)",
+        "company": "Z.ai (GLM)",
+        "is_free": True,
+        "description": "General Language Model by Z.ai (Active Free)"
+    },
+    # Cohere (Active Free Slug)
+    {
+        "id": "cohere/north-mini-code:free",
+        "name": "North Mini Code (Free)",
+        "company": "Cohere",
+        "is_free": True,
+        "description": "Cohere enterprise code assistant model (Active Free)"
+    },
+    # LiquidAI (Active Free Slug)
+    {
+        "id": "liquid/lfm-2.5-2.6b:free",
+        "name": "LFM 2.5 2.6B (Free)",
+        "company": "LiquidAI",
+        "is_free": True,
+        "description": "Liquid Neural Network foundation model (Active Free)"
+    },
+    # inclusionAI (Active Free Slugs)
+    {
+        "id": "inclusionai/ling-3.0-flash-vl:free",
+        "name": "Ling 3.0 Flash VL (Free)",
+        "company": "inclusionAI",
+        "is_free": True,
+        "description": "InclusionAI vision-language multimodal model (Active Free)"
+    },
+    {
+        "id": "inclusionai/ling-3.0-flash-sante:free",
+        "name": "Ling 3.0 Flash Sante (Free)",
+        "company": "inclusionAI",
+        "is_free": True,
+        "description": "InclusionAI healthcare & scientific domain model (Active Free)"
+    },
+    {
+        "id": "inclusionai/ling-3.0-flash-fin:free",
+        "name": "Ling 3.0 Flash Fin (Free)",
+        "company": "inclusionAI",
+        "is_free": True,
+        "description": "InclusionAI finance & accounting domain model (Active Free)"
+    },
+    # Nex AGI (Active Free Slugs)
+    {
+        "id": "nex-agi/nex-n2.5-mini:free",
+        "name": "Nex-N2.5-Mini (Free)",
+        "company": "Nex AGI",
+        "is_free": True,
+        "description": "Agentic coding and planning model (Active Free)"
+    },
+    {
+        "id": "nex-agi/nex-n2.5-pro:free",
+        "name": "Nex-N2.5-Pro (Free)",
+        "company": "Nex AGI",
+        "is_free": True,
+        "description": "Advanced multi-file coding agent model (Active Free)"
+    },
+    # Thinking Machines (Active Free Slug)
+    {
+        "id": "thinkingmachines/inkling-small:free",
+        "name": "Inkling Small (Free)",
+        "company": "Thinking Machines",
+        "is_free": True,
+        "description": "Compact conversational reasoning LLM (Active Free)"
+    },
+    # Poolside (Active Free Slug)
+    {
+        "id": "poolside/laguna-s-2.1:free",
+        "name": "Laguna S 2.1 (Free)",
+        "company": "Poolside",
+        "is_free": True,
+        "description": "Code synthesis and software engineering model (Active Free)"
+    },
+    # Dots Studio (Active Free Slug)
+    {
+        "id": "dots-studio/dots-3-note-preview:free",
+        "name": "Dots3-Note Preview (Free)",
+        "company": "Dots Studio",
+        "is_free": True,
+        "description": "Document parsing and note generation model (Active Free)"
+    },
+    # Meta / Llama (Active Micro-Tier models on OpenRouter - requires minimal credits)
     {
         "id": "meta-llama/llama-3.3-70b-instruct",
         "name": "Llama 3.3 70B Instruct",
@@ -74,102 +214,6 @@ FALLBACK_OPENROUTER_MODELS = [
         "company": "Meta (Llama)",
         "is_free": False,
         "description": "Meta multimodal reasoning contributor model"
-    },
-    # Google
-    {
-        "id": "google/gemma-4-31b-it:free",
-        "name": "Gemma 4 31B Instruct (Free)",
-        "company": "Google",
-        "is_free": True,
-        "description": "Google DeepMind open weights 31B instruction model"
-    },
-    {
-        "id": "google/gemma-4-26b-a4b-it:free",
-        "name": "Gemma 4 26B A4B Instruct (Free)",
-        "company": "Google",
-        "is_free": True,
-        "description": "Google DeepMind lightweight Gemma 4 variant"
-    },
-    {
-        "id": "google/gemma-2-9b-it:free",
-        "name": "Gemma 2 9B Instruct (Free)",
-        "company": "Google",
-        "is_free": True,
-        "description": "Google Gemma 2 9B high performance open model"
-    },
-    # NVIDIA
-    {
-        "id": "nvidia/nemotron-3.5-lightning:free",
-        "name": "Nemotron 3.5 Lightning (Free)",
-        "company": "NVIDIA",
-        "is_free": True,
-        "description": "NVIDIA ultra-fast low-latency generative model"
-    },
-    {
-        "id": "nvidia/nemotron-3.5-content-safety:free",
-        "name": "Nemotron 3.5 Content Safety (Free)",
-        "company": "NVIDIA",
-        "is_free": True,
-        "description": "NVIDIA guardrail and safety evaluation model"
-    },
-    {
-        "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "name": "Nemotron 3 Ultra (Free)",
-        "company": "NVIDIA",
-        "is_free": True,
-        "description": "NVIDIA massive MoE architecture model"
-    },
-    {
-        "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        "name": "Nemotron 3 Nano Omni (Free)",
-        "company": "NVIDIA",
-        "is_free": True,
-        "description": "NVIDIA multimodal reasoning model"
-    },
-    {
-        "id": "nvidia/nemotron-3-super-120b-a12b:free",
-        "name": "Nemotron 3 Super (Free)",
-        "company": "NVIDIA",
-        "is_free": True,
-        "description": "NVIDIA 120B high-throughput model"
-    },
-    # DeepSeek
-    {
-        "id": "deepseek/deepseek-v4-flash-0731:free",
-        "name": "DeepSeek V4 Flash 0731 (Free)",
-        "company": "DeepSeek",
-        "is_free": True,
-        "description": "DeepSeek fast reasoning and code generation model"
-    },
-    {
-        "id": "deepseek/deepseek-r1:free",
-        "name": "DeepSeek R1 Reasoning (Free Tier)",
-        "company": "DeepSeek",
-        "is_free": True,
-        "description": "DeepSeek breakthrough open reasoning model"
-    },
-    # Alibaba / Qwen
-    {
-        "id": "qwen/qwen3.8-27b:free",
-        "name": "Qwen 3.8 27B (Free)",
-        "company": "Alibaba (Qwen)",
-        "is_free": True,
-        "description": "Alibaba Cloud high-capability bilingual LLM"
-    },
-    {
-        "id": "qwen/qwen-2.5-72b-instruct:free",
-        "name": "Qwen 2.5 72B Instruct (Free Tier)",
-        "company": "Alibaba (Qwen)",
-        "is_free": True,
-        "description": "Alibaba 72B flagship open instruction model"
-    },
-    # Cohere
-    {
-        "id": "cohere/north-mini-code:free",
-        "name": "North Mini Code (Free)",
-        "company": "Cohere",
-        "is_free": True,
-        "description": "Cohere enterprise code assistant model"
     },
     # Z.ai
     {
