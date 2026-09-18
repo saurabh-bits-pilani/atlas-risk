@@ -359,6 +359,12 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         logger.warning(f"ReportLab not available: {e}")
         return False
 
+    rec_status = record.get("status", "COMPLETE")
+    counts = record.get("counts", {})
+    issues_cnt = counts.get("issues_observed", counts.get("issues", len(record.get("findings", []))))
+    clean_cnt = counts.get("no_issue_observed", counts.get("no_issue", len(record.get("positive_observations", []))))
+    unassessed_cnt = counts.get("unassessed_or_blocked", counts.get("not_completed", counts.get("unassessed", len(record.get("unassessed_areas", [])))))
+
     class NumberedCanvas(canvas.Canvas):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -381,10 +387,13 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             self.setFont("Helvetica", 8)
             self.setFillColor(colors.HexColor("#64748b"))
 
+            is_unreachable = rec_status in ("FAILED_CONNECTIVITY", "UNREACHABLE") or (clean_cnt == 0 and issues_cnt == 0)
+
             # Header on subsequent pages
             if self._pageNumber > 1:
                 self.drawString(40, 808, "ATLAS-Risk Assessment Report — Confidential")
-                self.drawRightString(555, 808, "Verified Automated Evaluation")
+                header_right = "Target Unreachable / Incomplete Run" if is_unreachable else ("Verified Automated Evaluation" if clean_cnt > 0 else "Evaluation Incomplete")
+                self.drawRightString(555, 808, header_right)
                 self.setStrokeColor(colors.HexColor("#cbd5e1"))
                 self.setLineWidth(0.5)
                 self.line(40, 802, 555, 802)
@@ -393,7 +402,16 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             self.setStrokeColor(colors.HexColor("#e2e8f0"))
             self.setLineWidth(0.5)
             self.line(40, 45, 555, 45)
-            self.drawString(40, 32, "ATLAS-Risk Evidence-Based Assessment Engine (Zero Untested Claims)")
+            if is_unreachable:
+                footer_text = "ATLAS-Risk Security Scanner (Pre-flight Connectivity Incomplete — 0 Findings)"
+            elif unassessed_cnt > 0 or rec_status == "PARTIAL":
+                footer_text = "ATLAS-Risk Evidence-Based Assessment Engine (Bounded Scope — Incomplete Tests Unassessed)"
+            elif clean_cnt > 0 and issues_cnt == 0:
+                footer_text = "ATLAS-Risk Evidence-Based Assessment Engine (All Probes Evaluated)"
+            else:
+                footer_text = "ATLAS-Risk Evidence-Based Assessment Engine"
+
+            self.drawString(40, 32, footer_text)
             self.drawRightString(555, 32, f"Page {self._pageNumber} of {page_count}")
             self.restoreState()
 
@@ -622,7 +640,10 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     # 3. Unassessed Areas & Required Access
     story.append(Paragraph("3. Unassessed Areas & Permissions Required", h2_style))
     if not unassessed:
-        story.append(Paragraph("All designated target areas were verified.", body_style))
+        if clean_cnt + issues_cnt > 0:
+            story.append(Paragraph("All designated target areas were verified.", body_style))
+        else:
+            story.append(Paragraph("No target areas were assessed due to connectivity failure.", body_style))
     else:
         un_data = [[
             Paragraph("<b>Target Area</b>", body_bold),

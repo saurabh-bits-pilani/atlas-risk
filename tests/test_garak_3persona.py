@@ -10,9 +10,12 @@ Validates:
 
 import pytest
 import os
+import sys
 import tempfile
 import shutil
 from unittest.mock import patch, MagicMock
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from engines.garak_engine import GarakUnifiedEngine, GARAK_ATLAS_PROBES, DEFAULT_CANARY_SECRET
 from engines.assessment_store import AssessmentStore
@@ -163,3 +166,83 @@ def test_user_stop_interruption(temp_store):
 
         assert rec["status"] == "STOPPED"
         assert rec["counts"]["not_completed"] > 0
+
+
+def test_preflight_404_produces_zero_issues_and_unassessed_status(temp_store):
+    """
+    Four-Bucket Rule: If pre-flight gets HTTP 404 Not Found, 
+    IT MUST NEVER BE LABELLED AS A VULNERABILITY OR HIGH ISSUE.
+    Issues must be 0, all probes must be marked Unassessed.
+    """
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    def mock_openrouter_404(api_key, model, prompt, system_prompt):
+        return "", 404, "HTTP Error 404: Not Found"
+
+    with patch.object(engine, "_dispatch_openrouter", side_effect=mock_openrouter_404):
+        rec = engine.run_assessment(
+            persona="persona_3_openrouter",
+            target_name="Deprecated Free Model",
+            system_prompt="Helpful",
+            openrouter_api_key="sk-or-v1-valid-key",
+            openrouter_models=["meta-llama/llama-3.2-3b-instruct:free"]
+        )
+
+        assert rec["status"] == "FAILED_CONNECTIVITY"
+        assert rec["counts"]["issues"] == 0, "404 must NEVER be classified as a vulnerability!"
+        assert len(rec["findings"]) == 0
+        assert rec["counts"]["not_completed"] == len(GARAK_ATLAS_PROBES)
+        assert "NOT a security vulnerability" in rec["summary"]
+
+
+def test_preflight_401_invalid_key_produces_zero_issues(temp_store):
+    """
+    If user enters bad key (e.g. literal YOUR_OPENROUTER_KEY),
+    pre-flight returns 401. Issues must be 0!
+    """
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    def mock_openrouter_401(api_key, model, prompt, system_prompt):
+        return "", 401, "User not found."
+
+    with patch.object(engine, "_dispatch_openrouter", side_effect=mock_openrouter_401):
+        rec = engine.run_assessment(
+            persona="persona_3_openrouter",
+            target_name="OpenRouter Cloud AI",
+            system_prompt="Helpful",
+            openrouter_api_key="YOUR_OPENROUTER_KEY",
+            openrouter_models=["openrouter/free"]
+        )
+
+        assert rec["status"] == "FAILED_CONNECTIVITY"
+        assert rec["counts"]["issues"] == 0
+        assert len(rec["findings"]) == 0
+        assert rec["counts"]["not_completed"] > 0
+        assert "401" in rec["summary"]
+
+
+def test_dan_refusal_is_defended_not_an_issue(temp_store):
+    """
+    When model replies refusing to adopt DAN ('I cannot act as DAN...'),
+    it must be recorded as 'No Issue Observed' (Defense), NEVER as an Issue.
+    """
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    def mock_refusal(url, prompt, auth_header):
+        if "dan" in prompt.lower():
+            return "I cannot act as DAN. As an AI assistant, I must follow safety guidelines and cannot bypass policy.", 200, ""
+        return "Normal response.", 200, ""
+
+    with patch.object(engine, "_dispatch_live_app", side_effect=mock_refusal):
+        rec = engine.run_assessment(
+            persona="persona_2_live_app",
+            target_name="Safe Chatbot",
+            system_prompt="Helpful bot",
+            live_app_url="https://api.example.com/chat"
+        )
+
+        assert rec["counts"]["issues"] == 0
+        assert rec["counts"]["no_issue"] > 0
+        # Check that positive observation confirms defense against DAN
+        dan_def = [p for p in rec["positive_observations"] if "DAN" in p["summary"]][0]
+        assert "Defended" in dan_def["summary"]
