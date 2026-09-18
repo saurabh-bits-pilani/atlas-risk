@@ -35,13 +35,18 @@ def sanitize(text: Any) -> str:
 
 
 def clean_pdf_text(text: Any) -> str:
-    """Escapes XML entities and preserves linebreaks for ReportLab Paragraphs."""
+    """Escapes XML entities, strips non-printable/unsupported font emojis, and preserves linebreaks for ReportLab."""
     if text is None:
         return ""
     s = str(text)
+    # Replace common status emojis with clean text representations
+    s = s.replace('🟢', '').replace('🔹', '').replace('🌟', '').replace('⚡', '').replace('🛡️', '')
+    s = s.replace('✅', '[PASS]').replace('❌', '[FAIL]').replace('⚠️', '[WARN]').replace('ℹ️', '')
+    # Strip any characters above unicode range that standard Helvetica cannot render
+    s = ''.join(c for c in s if ord(c) < 0x2000 or ord(c) in (0x2013, 0x2014, 0x2018, 0x2019, 0x2022))
     s = s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     s = s.replace('\n', '<br/>')
-    return s
+    return s.strip()
 
 
 def generate_html_report(record: Dict[str, Any]) -> str:
@@ -60,6 +65,15 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     positives = record.get("positive_observations", [])
     unassessed = record.get("unassessed_areas", [])
     next_steps = record.get("next_steps", record.get("next_steps_required_access", []))
+
+    model_name = sanitize(record.get("model_name") or target)
+    model_id = sanitize(record.get("model_id") or target)
+    company = sanitize(record.get("model_company") or "OpenRouter / Cloud AI")
+    tier_str = sanitize(record.get("model_tier") or ("🟢 100% Free Tier" if (":free" in str(model_id) or model_id == "openrouter/free") else "🔹 Standard Tier"))
+    duration = record.get("execution_duration_sec", "")
+    dur_str = f"{duration}s" if duration != "" else "Automated Quick Scan"
+    eval_date = sanitize(record.get("evaluated_at_display") or f"{created_at[:19].replace('T', ' ')} UTC")
+    mode_label = sanitize(record.get("target_type", "Cloud AI Audit")).replace("_", " ").title()
 
     issues_cnt = counts.get("issues_observed", counts.get("issues", len(findings)))
     clean_cnt = counts.get("no_issue_observed", counts.get("no_issue", len(positives)))
@@ -289,10 +303,13 @@ def generate_html_report(record: Dict[str, Any]) -> str:
 
 <div class="report-header">
     <div class="report-title">ATLAS-Risk Assessment Report</div>
-    <div class="report-meta">
-        <span><strong>Target:</strong> <code>{target}</code></span>
-        <span><strong>Report ID:</strong> {rec_id}</span>
-        <span><strong>Date:</strong> {created_at[:19].replace('T', ' ')} UTC</span>
+    <div class="report-meta" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-top: 10px;">
+        <span><strong>Model Tested:</strong> {model_name} (<code>{model_id}</code>)</span>
+        <span><strong>Assessment ID:</strong> {rec_id}</span>
+        <span><strong>Managing Provider:</strong> <b>{company}</b> <span style="font-size: 7.5pt; color: #16a34a;">({tier_str})</span></span>
+        <span><strong>Evaluation Date:</strong> {eval_date}</span>
+        <span><strong>Audit Scope / Mode:</strong> {mode_label}</span>
+        <span><strong>Execution Duration:</strong> {dur_str} (10 Garak Probes)</span>
         <span><strong>Status:</strong> <span class="badge {status_badge_class}">{status}</span></span>
     </div>
 </div>
@@ -501,22 +518,41 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(header_table)
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#0284c7"), spaceBefore=4, spaceAfter=8))
 
+    model_name = record.get("model_name") or target
+    model_id = record.get("model_id") or target
+    company = record.get("model_company") or "OpenRouter / Cloud AI"
+    tier_str = record.get("model_tier") or ("100% Free Tier" if (":free" in str(model_id) or model_id == "openrouter/free") else "Standard Tier")
+    duration = record.get("execution_duration_sec", "")
+    dur_str = f"{duration}s" if duration != "" else "Automated Quick Scan"
+    eval_date_display = record.get("evaluated_at_display") or f"{created_at} UTC"
+    mode_label = clean_pdf_text(record.get('target_type', 'Cloud AI Audit')).replace('_', ' ').title()
+
     # Meta Table
     meta_data = [
         [
-            Paragraph("Target Tested:", meta_label_style), Paragraph(clean_pdf_text(target), meta_val_style),
-            Paragraph("Assessment ID:", meta_label_style), Paragraph(rec_id, meta_val_style),
+            Paragraph("Model Tested:", meta_label_style),
+            Paragraph(f"<b>{clean_pdf_text(model_name)}</b><br/><font size=6.8 color='#64748b'>ID: {clean_pdf_text(model_id)}</font>", meta_val_style),
+            Paragraph("Assessment ID:", meta_label_style),
+            Paragraph(f"<b>{rec_id}</b>", meta_val_style),
         ],
         [
-            Paragraph("Scope / Mode:", meta_label_style), Paragraph(clean_pdf_text(record.get('target_type', 'Public Assessment')), meta_val_style),
-            Paragraph("Evaluation Date:", meta_label_style), Paragraph(created_at, meta_val_style),
+            Paragraph("Provider / Company:", meta_label_style),
+            Paragraph(f"<b>{clean_pdf_text(company)}</b> &nbsp;<font size=7 color='#16a34a'>({clean_pdf_text(tier_str)})</font>", meta_val_style),
+            Paragraph("Evaluation Date:", meta_label_style),
+            Paragraph(f"<b>{clean_pdf_text(eval_date_display)}</b>", meta_val_style),
+        ],
+        [
+            Paragraph("Audit Scope / Mode:", meta_label_style),
+            Paragraph(mode_label, meta_val_style),
+            Paragraph("Execution Duration:", meta_label_style),
+            Paragraph(f"<b>{dur_str}</b> (10 Garak Probes)", meta_val_style),
         ]
     ]
-    meta_table = Table(meta_data, colWidths=[80, 200, 95, 140])
+    meta_table = Table(meta_data, colWidths=[95, 195, 95, 130])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
     ]))
     story.append(meta_table)
     story.append(Spacer(1, 10))

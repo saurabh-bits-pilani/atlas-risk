@@ -19,10 +19,11 @@ import json
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Callable
 
 from engines.assessment_store import AssessmentStore
+from engines.openrouter_catalog import _normalize_company
 
 # Default canary secret for leak detection testing
 DEFAULT_CANARY_SECRET = "ALPHA_CANARY_SECRET_889"
@@ -174,13 +175,22 @@ class GarakUnifiedEngine:
         live_auth_header: str = "",
         openrouter_api_key: str = "",
         openrouter_models: Optional[List[str]] = None,
+        model_metadata: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         stop_checker: Optional[Callable[[], bool]] = None
     ) -> Dict[str, Any]:
         """
         Executes a targeted Garak adversarial scan against the chosen persona.
-        Returns a standardized ATLAS-Risk assessment record.
+        Returns a standardized ATLAS-Risk assessment record with complete model metadata and timestamps.
         """
+        start_time = time.time()
+        now_utc = datetime.now(timezone.utc)
+        created_at_iso = now_utc.isoformat()
+        timestamp_utc = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+        ist_time = now_utc + timedelta(hours=5, minutes=30)
+        timestamp_ist = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
+        evaluated_at_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
+
         canary = canary_secret.strip() or DEFAULT_CANARY_SECRET
         findings = []
         positive_obs = []
@@ -191,7 +201,9 @@ class GarakUnifiedEngine:
         is_stopped = False
         rate_limited = False
 
-        # Build dispatcher according to persona
+        meta = model_metadata or {}
+
+        # Build dispatcher and model metadata according to persona
         if persona == "persona_1_ollama":
             dispatch_fn = lambda prompt: self._dispatch_ollama(
                 endpoint=ollama_endpoint,
@@ -201,6 +213,11 @@ class GarakUnifiedEngine:
             )
             target_type_label = "local_model"
             target_input_display = f"Local Ollama: {ollama_model}"
+            model_name = f"Ollama · {ollama_model}"
+            model_id = ollama_model
+            model_company = "Local Host (Ollama Private Engine)"
+            model_desc = f"Local open-weights model hosted on {ollama_endpoint}"
+            model_tier = "💻 Local Hardware (100% Free & Private)"
         elif persona == "persona_2_live_app":
             dispatch_fn = lambda prompt: self._dispatch_live_app(
                 url=live_app_url,
@@ -209,6 +226,11 @@ class GarakUnifiedEngine:
             )
             target_type_label = "chatbot"
             target_input_display = f"Live App: {live_app_url}"
+            model_name = "Chatbot Webhook Target"
+            model_id = live_app_url
+            model_company = "Application Endpoint"
+            model_desc = f"Live HTTP API webhook at {live_app_url}"
+            model_tier = "🌐 Production Webhook"
         elif persona == "persona_3_openrouter":
             chosen_model = openrouter_models[0] if openrouter_models else "openrouter/free"
             if chosen_model == "demo/sandbox-llm":
@@ -219,6 +241,11 @@ class GarakUnifiedEngine:
                 )
                 target_type_label = "demo_sandbox"
                 target_input_display = "Demo Sandbox AI (Simulated LLM)"
+                model_name = meta.get("name", "🌟 Demo Sandbox AI (Zero-Key Instant Testing)")
+                model_id = "demo/sandbox-llm"
+                model_company = meta.get("company", "ATLAS Sandbox")
+                model_desc = meta.get("description", "Simulated customer support LLM with embedded canary token.")
+                model_tier = "🟢 Free Sandbox"
             else:
                 dispatch_fn = lambda prompt: self._dispatch_openrouter(
                     api_key=openrouter_api_key,
@@ -228,6 +255,12 @@ class GarakUnifiedEngine:
                 )
                 target_type_label = "openrouter"
                 target_input_display = f"OpenRouter: {chosen_model}"
+                model_name = meta.get("name") or chosen_model
+                model_id = chosen_model
+                model_company = meta.get("company") or _normalize_company(chosen_model)
+                model_desc = meta.get("description", "OpenRouter hosted cloud foundation model.")
+                is_free = meta.get("is_free", ":free" in chosen_model or chosen_model == "openrouter/free")
+                model_tier = "🟢 100% Free Community Tier" if is_free else "🔹 Micro-Tier / Paid"
         else:
             raise ValueError(f"Unknown persona: {persona}")
 
@@ -265,13 +298,23 @@ class GarakUnifiedEngine:
                 f"{reason_desc} This is an infrastructure or connectivity failure, NOT a security vulnerability or finding against the model."
             )
 
+            elapsed_sec = round(time.time() - start_time, 1)
             record = {
                 "id": self.store.generate_assessment_id(),
                 "name": f"Adversarial Audit: {target_name}",
                 "target_type": target_type_label,
                 "target_input": target_input_display,
                 "persona": persona,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "model_name": model_name,
+                "model_id": model_id,
+                "model_company": model_company,
+                "model_tier": model_tier,
+                "model_description": model_desc,
+                "execution_duration_sec": elapsed_sec,
+                "created_at": created_at_iso,
+                "timestamp_utc": timestamp_utc,
+                "timestamp_ist": timestamp_ist,
+                "evaluated_at_display": evaluated_at_display,
                 "status": "FAILED_CONNECTIVITY",
                 "summary": summary_text,
                 "counts": {
@@ -424,8 +467,11 @@ class GarakUnifiedEngine:
         else:
             status = "COMPLETE"
 
+        elapsed_sec = round(time.time() - start_time, 1)
+
         summary_text = (
-            f"Adversarial MITRE ATLAS security audit completed for {target_name}. "
+            f"Adversarial MITRE ATLAS security audit completed for {model_name} [{model_id}] managed by {model_company}. "
+            f"Evaluated on {evaluated_at_display}. Audit duration: {elapsed_sec}s. "
             f"Observed {issues_cnt} vulnerability finding(s), {safe_cnt} verified defense(s), "
             f"and {unassessed_cnt} unassessed area(s)."
         )
@@ -436,7 +482,16 @@ class GarakUnifiedEngine:
             "target_type": target_type_label,
             "target_input": target_input_display,
             "persona": persona,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "model_name": model_name,
+            "model_id": model_id,
+            "model_company": model_company,
+            "model_tier": model_tier,
+            "model_description": model_desc,
+            "execution_duration_sec": elapsed_sec,
+            "created_at": created_at_iso,
+            "timestamp_utc": timestamp_utc,
+            "timestamp_ist": timestamp_ist,
+            "evaluated_at_display": evaluated_at_display,
             "status": status,
             "summary": summary_text,
             "counts": {

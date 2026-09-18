@@ -13,7 +13,7 @@ import os
 import json
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from engines.public_app_inspector import PublicAppInspector
 from engines.assessment_store import AssessmentStore
@@ -25,7 +25,8 @@ from engines.openrouter_catalog import (
     get_available_companies,
     filter_models,
     format_model_label,
-    FALLBACK_OPENROUTER_MODELS
+    FALLBACK_OPENROUTER_MODELS,
+    _normalize_company
 )
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -657,6 +658,13 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                     label_visibility="collapsed",
                     key="or_custom_model_input"
                 )
+                inp["model_metadata"] = {
+                    "id": inp["openrouter_model"],
+                    "name": inp["openrouter_model"],
+                    "company": _normalize_company(inp["openrouter_model"]),
+                    "description": "User-specified OpenRouter model endpoint",
+                    "is_free": ":free" in inp["openrouter_model"] or inp["openrouter_model"] == "openrouter/free"
+                }
             else:
                 filtered_models = filter_models(
                     catalog,
@@ -689,6 +697,7 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                 # Show details badge for the selected model
                 chosen_obj = next((m for m in filtered_models if m["id"] == selected_model_id), None)
                 if chosen_obj:
+                    inp["model_metadata"] = chosen_obj
                     comp_name = chosen_obj.get("company", "Cloud AI")
                     tier_str = "🟢 100% Free Community Tier" if chosen_obj.get("is_free") else "🔹 Micro-tier (OpenRouter Low-Cost)"
                     desc = chosen_obj.get("description", "OpenRouter hosted model")
@@ -1356,15 +1365,33 @@ def render_step_4(on_navigate=None):
 
         if not api_key and not is_demo:
             status_container.warning("⚠️ No OpenRouter API key provided. Pre-flight halted.")
+            now_utc = datetime.now(timezone.utc)
+            timestamp_utc = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+            ist_time = now_utc + timedelta(hours=5, minutes=30)
+            timestamp_ist = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
+            eval_date_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
+            meta = inp.get("model_metadata") or {}
+            model_name = meta.get("name") or chosen_model
+            model_company = meta.get("company") or _normalize_company(chosen_model)
+
             record = {
                 "id": store.generate_assessment_id(),
                 "name": f"OpenRouter Cloud Audit: {chosen_model}",
                 "target_type": "openrouter",
                 "target_input": f"OpenRouter: {chosen_model}",
                 "persona": "persona_3_openrouter",
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "model_name": model_name,
+                "model_id": chosen_model,
+                "model_company": model_company,
+                "model_tier": "🟢 Free Tier" if (":free" in chosen_model or chosen_model == "openrouter/free") else "🔹 Micro-Tier",
+                "model_description": meta.get("description", "OpenRouter hosted model"),
+                "execution_duration_sec": 0.0,
+                "created_at": now_utc.isoformat(),
+                "timestamp_utc": timestamp_utc,
+                "timestamp_ist": timestamp_ist,
+                "evaluated_at_display": eval_date_display,
                 "status": "FAILED_CONNECTIVITY",
-                "summary": "No security test ran. An OpenRouter API key is required to query cloud models. Missing key is an authentication boundary, NOT a vulnerability finding against the model.",
+                "summary": f"No security test ran for {model_name} [{chosen_model}] ({model_company}). An OpenRouter API key is required to query cloud models. Missing key is an authentication boundary, NOT a vulnerability finding against the model.",
                 "counts": {"issues": 0, "no_issue": 0, "not_completed": 10, "not_applicable": 0},
                 "findings": [],
                 "positive_observations": [],
@@ -1391,6 +1418,7 @@ def render_step_4(on_navigate=None):
                 canary_secret=canary,
                 openrouter_api_key=api_key,
                 openrouter_models=[chosen_model],
+                model_metadata=inp.get("model_metadata"),
                 progress_callback=on_progress,
                 stop_checker=lambda: st.session_state.get("stop_requested", False)
             )

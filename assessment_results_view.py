@@ -21,6 +21,14 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
     summary = record.get("summary", "Assessment completed.")
     counts = record.get("counts", {})
 
+    model_name = record.get("model_name") or target
+    model_id = record.get("model_id") or target
+    company = record.get("model_company") or "OpenRouter / Cloud AI"
+    tier_str = record.get("model_tier") or ("🟢 100% Free Tier" if (":free" in str(model_id) or model_id == "openrouter/free") else "🔹 Standard Tier")
+    duration = record.get("execution_duration_sec", "")
+    dur_str = f"{duration}s" if duration != "" else "Quick Scan"
+    eval_date_display = record.get("evaluated_at_display") or f"{record.get('created_at', '')[:19].replace('T', ' ')} UTC"
+
     if show_back_button:
         if st.button("← Back to Reports List"):
             if "opened_report_id" in st.session_state:
@@ -30,9 +38,9 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
     # Top Header & Action Row
     col_hdr, col_pdf, col_html = st.columns([3, 1.2, 1.2])
     with col_hdr:
-        st.subheader(f"📊 Assessment Results: `{target}`")
+        st.subheader(f"📊 Assessment Results: `{model_name}`")
         status_color = "🟢" if status == "COMPLETE" else ("🟡" if status == "PARTIAL" else "🔴")
-        st.caption(f"Status: **{status_color} {status}** | ID: `{rec_id}` | Date: {record.get('created_at', '')[:19].replace('T', ' ')} UTC")
+        st.caption(f"Status: **{status_color} {status}** | Company: **{company}** | ID: `{rec_id}` | Evaluated: **{eval_date_display}**")
 
     # Generate or retrieve PDF & HTML exports
     pdf_path, html_path = None, None
@@ -94,11 +102,23 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
     ])
 
     with tab_overview:
-        st.markdown("### Assessment Overview")
-        st.write(f"- **Target Evaluated:** `{target}`")
-        st.write(f"- **Assessment Mode:** {record.get('target_type', 'Public Review').title()}")
-        st.write(f"- **Evaluation Scope:** Bounded public-first inspection.")
-        st.write(f"- **Completion State:** `{status}`")
+        st.markdown("### 📋 Assessment & Target Overview")
+        ov_col1, ov_col2 = st.columns(2)
+        with ov_col1:
+            st.markdown(f"**Model Name:** {model_name}")
+            st.markdown(f"**Model Identifier (Slug):** `{model_id}`")
+            st.markdown(f"**Managing Company / Provider:** **{company}**")
+            st.markdown(f"**Service Tier:** {tier_str}")
+        with ov_col2:
+            st.markdown(f"**Evaluation Timestamp:** {eval_date_display}")
+            st.markdown(f"**Audit Execution Duration:** {dur_str} (10 Garak Probes)")
+            st.markdown(f"**Assessment Mode:** {record.get('target_type', 'Public Review').replace('_', ' ').title()}")
+            st.markdown(f"**Completion State:** `{status}`")
+
+        model_desc = record.get("model_description")
+        if model_desc:
+            st.info(f"ℹ️ **Model Description:** {model_desc}")
+
         st.markdown("---")
         st.markdown("#### Recommended Next Steps")
         next_steps = record.get("next_steps", record.get("next_steps_required_access", []))
