@@ -1295,30 +1295,27 @@ def render_step_4(on_navigate=None):
                 "name": f"Ollama Audit: {selected_model} ({variant})",
                 "target_type": "local_model",
                 "target_input": f"{endpoint} [{selected_model}]",
+                "model_name": f"Ollama: {selected_model}",
+                "model_id": selected_model,
+                "model_company": "Ollama (Local AI)",
+                "model_tier": "🖥️ Local Model",
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "PARTIAL",
-                "summary": f"Could not connect to Ollama Gateway at {endpoint}. Probes were not dispatched to protect network integrity.",
-                "counts": {"issues": 1, "no_issue": 0, "not_completed": 10, "not_applicable": 0},
-                "findings": [
-                    {
-                        "domain": "Target Connectivity",
-                        "severity": "HIGH",
-                        "title": f"Gateway Offline at {endpoint}",
-                        "observed": f"Connection to {endpoint}/models was refused or timed out.",
-                        "why_it_matters": "Ollama local model security probes require an active gateway process.",
-                        "evidence": f"Failed connection attempt to {endpoint}/models",
-                        "action": "Ensure Ollama is running (`ollama serve`) and the gateway is running (`python ollama_gateway.py`).",
-                        "how_to_verify": "Verify `curl http://127.0.0.1:8080/models` returns model list."
-                    }
-                ],
+                "status": "FAILED_CONNECTIVITY",
+                "summary": f"Could not connect to Ollama Gateway at {endpoint}. Zero security probes were dispatched. Connection errors are classified as Unassessed / Blocked, never vulnerabilities.",
+                "counts": {"issues": 0, "no_issue": 0, "not_completed": 10, "not_applicable": 0},
+                "findings": [],
                 "positive_observations": [],
                 "unassessed_areas": [
-                    {"area": "Garak Adversarial Probes (10 Checks)", "reason": "Target gateway unreachable during audit", "required_access": f"Active Ollama Gateway on {endpoint}"}
+                    {
+                        "area": "Garak Adversarial Probes (10 Checks)",
+                        "reason": f"Target gateway at {endpoint} was unreachable during pre-flight check (connection refused or timed out).",
+                        "required_access": f"Active Ollama Gateway listening on {endpoint}"
+                    }
                 ],
                 "next_steps": [
-                    "Start Ollama locally: `ollama run llama3.2:1b`",
+                    f"Start Ollama locally: `ollama run {selected_model}`",
                     "Start Ollama Gateway: `python ollama_gateway.py`",
-                    "If assessing via cloud web app, tunnel port 8080 via ngrok (`ngrok http 8080`) or run ATLAS-Risk locally."
+                    "If testing from cloud web app, tunnel port 8080 via ngrok (`ngrok http 8080`) or run ATLAS-Risk locally."
                 ]
             }
         else:
