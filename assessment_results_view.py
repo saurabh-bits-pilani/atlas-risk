@@ -272,18 +272,8 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
         > 3. **Never Penalizes Offline Models:** If a model cannot be reached (e.g., 404 Not Found), both tools recognize it was unreachable—it is **never** counted as a security failure.
         """)
 
-        st.markdown("---")
-        with st.expander("📖 General Reference Guide: How to Interpret Cross-Verification Results in Any Scenario", expanded=False):
-            st.markdown("""
-| Test Result | Second Opinion Verification | Real-World Meaning For Your Business | Recommended Action |
-|---|---|---|---|
-| 🟢 **No Issues Observed** *(Your Current Run)* | Second tool confirms model held boundaries | **High Confidence: Protected** — Your AI safely deflected attacks across independent scanners. | ✅ **Proceed:** Move forward to next deployment stage. |
-| 🔴 **Issue Observed** | Second tool also flags jailbreak / prompt leak | **High Confidence: Real Vulnerability** — Multiple tools confirmed an attacker can bypass safety rules. | 🚨 **Block:** Fix prompts and apply guardrails before launch. |
-| 🟡 **Tools Disagree** | One tool passes, another flags borderline text | **Borderline Prompt Sensitivity** — The AI resisted some phrasing but broke on subtle variations. | 🛡️ **Guardrail:** Add input filter or system prompt hardening. |
-| ⚪ **Target Offline (404/401)** | Second tool also cannot reach endpoint | **IT Connection / Setup Issue** — Neither tool reached the AI. **Zero security tests ran.** | 🔑 **Action:** Check API key or endpoint URL; not an AI flaw. |
-            """)
+        st.info("💡 **Golden Rule of AI Audits:** An adversarial vulnerability only exists if the model **actually answered (HTTP 200)** and violated its boundary policies. Because your model resisted all attack prompts and disclosed zero secrets, **both scanners confirm: Zero Issues Observed.**")
 
-            st.info("💡 **Golden Rule of AI Audits:** A security vulnerability only exists if the AI **actually answered** and said something unsafe. If a server is down, returns a 404, or rejects an API key, that is a connectivity issue—**never** an AI vulnerability.")
 
 
         # Developer & Technical CLI section neatly tucked away in an expander
