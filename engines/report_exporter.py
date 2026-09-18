@@ -104,10 +104,12 @@ def generate_html_report(record: Dict[str, Any]) -> str:
                     <span class="badge {sev_class}-badge">{sev}</span>
                 </div>
                 <div class="finding-body">
-                    <p><strong>Observed Evidence:</strong> {sanitize(f.get('observed', f.get('evidence', '')))}</p>
-                    <p><strong>Why it matters:</strong> {sanitize(f.get('why_it_matters', 'Affects system resilience, accessibility, or user privacy.'))}</p>
+                    <p><strong>🏢 Business Impact & Risk:</strong> {sanitize(f.get('business_impact', f.get('why_it_matters', 'Affects system resilience, accessibility, or user privacy.')))}</p>
+                    <p><strong>🎭 Real-World Attack Scenario:</strong> {sanitize(f.get('attack_scenario', 'An adversary sends crafted prompts to bypass intended safeguards.'))}</p>
+                    <p><strong>⚖️ Regulatory & Compliance Exposure:</strong> <code>{sanitize(f.get('compliance_impact', f.get('domain', 'MITRE ATLAS / OWASP LLM Top 10')))}</code></p>
+                    <p><strong>🔍 Observed Technical Evidence:</strong> {sanitize(f.get('observed', f.get('evidence', '')))}</p>
                     <div class="finding-action">
-                        <strong>Recommended action:</strong>
+                        <strong>🛠️ Actionable Executive Remediation:</strong>
                         <code>{sanitize(f.get('action', f.get('fix', f.get('recommendation', ''))))}</code>
                     </div>
                     {code_fix_html}
@@ -118,10 +120,13 @@ def generate_html_report(record: Dict[str, Any]) -> str:
 
     positives_html = []
     for p in positives:
+        pv = sanitize(p.get('practical_value', ''))
+        pv_html = f"<br/><span style='color: #15803d; font-size: 8pt;'><strong>💼 Business Value:</strong> {pv}</span>" if pv else ""
         positives_html.append(f"""
         <li>
-            <strong>[{sanitize(p.get('area', p.get('aspect', 'Observation')))}]</strong> {sanitize(p.get('observation', ''))}
+            <strong>[{sanitize(p.get('aspect', p.get('area', 'Security Control')))}]</strong> {sanitize(p.get('summary', p.get('observation', '')))}
             <br><span class="evidence-subtext">Evidence: <code>{sanitize(p.get('evidence', ''))}</code></span>
+            {pv_html}
         </li>
         """)
 
@@ -600,9 +605,9 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         story.append(Paragraph("No positive observations recorded.", body_style))
     else:
         pos_data = [[
-            Paragraph("<b>Area / Aspect</b>", body_bold),
-            Paragraph("<b>Observed Evidence</b>", body_bold),
-            Paragraph("<b>Practical Value</b>", body_bold)
+            Paragraph("<b>Security Control / Domain</b>", body_bold),
+            Paragraph("<b>Observed Adversarial Evidence</b>", body_bold),
+            Paragraph("<b>Practical Business Value</b>", body_bold)
         ]]
         for p in positives:
             pos_data.append([
@@ -610,7 +615,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
                 Paragraph(clean_pdf_text(p.get("evidence", p.get("observation", ""))), body_style),
                 Paragraph(clean_pdf_text(p.get("practical_value", p.get("observation", ""))), body_style),
             ])
-        pos_table = Table(pos_data, colWidths=[130, 245, 140])
+        pos_table = Table(pos_data, colWidths=[125, 230, 160])
         pos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
             ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
@@ -645,12 +650,23 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ]))
 
+            biz_impact = f.get("business_impact", f.get("why_it_matters", "Risk to business operations and data confidentiality."))
+            attack_scen = f.get("attack_scenario", "An adversary crafts targeted prompts to manipulate the model into bypassing safeguards.")
+            compliance = f.get("compliance_impact", f.get("domain", "MITRE ATLAS / OWASP LLM Top 10"))
+            remediation = f.get("action", f.get("fix", f.get("recommendation", "Review and apply security guardrails.")))
+
             card_content = [
                 f_header,
+                Spacer(1, 4),
+                Paragraph("<b>Business Impact & Risk Analysis:</b> " + clean_pdf_text(biz_impact), body_style),
                 Spacer(1, 3),
-                Paragraph("<b>Observed Evidence:</b> " + clean_pdf_text(f.get("observed", f.get("evidence", "N/A"))), evidence_style),
+                Paragraph("<b>Real-World Attack Scenario:</b> " + clean_pdf_text(attack_scen), body_style),
                 Spacer(1, 3),
-                Paragraph("<b>Impact & Recommendation:</b> " + clean_pdf_text(f.get("action", f.get("fix", f.get("recommendation", "Review and fix.")))), body_style),
+                Paragraph("<b>Regulatory & Compliance Exposure:</b> <font color='#334155'><b>" + clean_pdf_text(compliance) + "</b></font>", body_style),
+                Spacer(1, 3),
+                Paragraph("<b>Observed Technical Evidence:</b> " + clean_pdf_text(f.get("observed", f.get("evidence", "N/A"))), evidence_style),
+                Spacer(1, 3),
+                Paragraph("<b>Actionable Executive Remediation:</b> " + clean_pdf_text(remediation), body_style),
             ]
 
             code_fix = f.get("code_fix")

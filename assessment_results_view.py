@@ -126,7 +126,7 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
             st.markdown(f"• {step}")
 
     with tab_findings:
-        st.markdown("### Observed Issues & Practical Code Fixes")
+        st.markdown("### Observed Issues & Practical Remediations")
         findings = record.get("findings", [])
         if not findings:
             st.success("🎉 Zero issues observed within the tested scope!")
@@ -135,20 +135,33 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                 sev = f.get("severity", "MEDIUM").upper()
                 sev_icon = "🔴" if "HIGH" in sev or "CRIT" in sev else ("🟡" if "MED" in sev else "🔵")
                 with st.expander(f"{sev_icon} #{idx}: {f.get('title', f.get('issue', 'Issue'))} ({sev})", expanded=True):
-                    st.markdown(f"**What we observed:** {f.get('observed', f.get('evidence', ''))}")
-                    st.markdown(f"**Why it matters:** {f.get('why_it_matters', 'Affects application reliability or security.')}")
-                    st.markdown(f"**Traceable Evidence:** `{f.get('evidence', '')}`")
-                    st.markdown(f"**Recommended Action / Practical Fix:**")
-                    st.code(f.get("action", f.get("fix", "")), language="javascript" if "header" in str(f.get("action")).lower() else "html")
+                    biz_impact = f.get("business_impact", f.get("why_it_matters", "Risk to business operations."))
+                    attack_scen = f.get("attack_scenario", "Adversary uses prompt manipulation to bypass boundaries.")
+                    compliance = f.get("compliance_impact", f.get("domain", "MITRE ATLAS / OWASP LLM Top 10"))
+
+                    st.markdown(f"**🏢 Executive Business Impact & Risk:**\n{biz_impact}")
+                    st.markdown(f"**🎭 Real-World Attack Scenario:**\n{attack_scen}")
+                    st.markdown(f"**⚖️ Regulatory & Compliance Exposure:**\n`{compliance}`")
+                    st.markdown(f"**🔍 Observed Technical Evidence:**\n`{f.get('observed', f.get('evidence', ''))}`")
+                    
+                    st.markdown("**🛠️ Actionable Executive Remediation:**")
+                    st.info(f.get("action", f.get("fix", "")))
+                    
                     if f.get("how_to_verify"):
                         st.caption(f"**How to verify:** {f.get('how_to_verify')}")
 
     with tab_evidence:
-        st.markdown("### Verified Positive Observations")
+        st.markdown("### Verified Positive Controls & Business Value")
         positives = record.get("positive_observations", [])
         if positives:
             for p in positives:
-                st.markdown(f"• **[{p.get('area', 'Verified')}]** {p.get('observation', '')}\n  - *Evidence:* `{p.get('evidence', '')}`")
+                aspect = p.get('aspect', p.get('area', 'Security Control'))
+                summary = p.get('summary', p.get('observation', ''))
+                pv = p.get('practical_value', '')
+                st.markdown(f"• **[{aspect}]** {summary}")
+                if pv:
+                    st.markdown(f"  - 💼 **Business Value:** *{pv}*")
+                st.markdown(f"  - 🔍 *Evidence:* `{p.get('evidence', '')}`")
         else:
             st.caption("No positive observations recorded.")
 
