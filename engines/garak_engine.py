@@ -417,6 +417,7 @@ class GarakUnifiedEngine:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Content-Type": "application/json",
+            "User-Agent": "ATLAS-Risk-Security-Scanner/1.0",
             "Authorization": f"Bearer {api_key.strip()}",
             "HTTP-Referer": "https://atlas-risk.taegisai.space",
             "X-Title": "ATLAS-Risk Security Platform"
