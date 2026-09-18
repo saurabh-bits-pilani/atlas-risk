@@ -20,6 +20,18 @@ from engines.assessment_store import AssessmentStore
 from assessment_results_view import render_assessment_results
 from engines.garak_engine import GarakUnifiedEngine, DEFAULT_CANARY_SECRET
 from local_ai_testing_ui import LOCAL_TEST_CATALOGUE, SYNTHETIC_SECRET
+from engines.openrouter_catalog import (
+    fetch_live_openrouter_catalog,
+    get_available_companies,
+    filter_models,
+    format_model_label,
+    FALLBACK_OPENROUTER_MODELS
+)
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_cached_openrouter_catalog():
+    """Cache OpenRouter models catalog for 30 minutes for fast zero-latency rendering."""
+    return fetch_live_openrouter_catalog(timeout_sec=3.0)
 
 # Presets for ease of testing
 DEFAULT_PUBLIC_URL = "http://127.0.0.1:8088/public_app"
@@ -608,23 +620,82 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                 <div style="font-size: 13.5px; font-weight: 700; color: #166534;">☁️ Persona 3: Free Cloud Models via OpenRouter</div>
                 <div style="font-size: 12px; color: #15803d; line-height: 1.4;">
                     Audit hosted open models on cloud infrastructure without eating up your Mac's RAM. 
-                    Uses free tiers (Nemotron, Llama 3.2, Gemma 2) with honest daily quota alerts.
+                    Filter by managing company (Meta, Google, NVIDIA, DeepSeek, Alibaba, etc.) or search any model.
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Select Free Cloud Model <span style='color: #ef4444;'>*</span></div>", unsafe_allow_html=True)
-            free_models = [
-                "openrouter/free",
-                "deepseek/deepseek-v4-flash-0731:free",
-                "nvidia/nemotron-3.5-lightning:free",
-                "google/gemma-4-31b-it:free",
-                "qwen/qwen3.8-27b:free",
-                "z-ai/glm-5.2:free"
-            ]
-            curr_or_model = inp.get("openrouter_model", free_models[0])
-            or_idx = free_models.index(curr_or_model) if curr_or_model in free_models else 0
-            inp["openrouter_model"] = st.selectbox("OpenRouter Model", free_models, index=or_idx, label_visibility="collapsed")
+            catalog = load_cached_openrouter_catalog()
+            available_companies = get_available_companies(catalog) + ["Custom Model ID"]
+
+            # Two-column layout: Company filter and Free-only toggle
+            c_comp, c_free = st.columns([3, 2])
+            with c_comp:
+                st.markdown("<div style='font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>🏢 Filter by Company / Provider</div>", unsafe_allow_html=True)
+                selected_comp = st.selectbox(
+                    "Filter by Company",
+                    available_companies,
+                    index=0,
+                    label_visibility="collapsed",
+                    key="or_company_filter"
+                )
+            with c_free:
+                st.markdown("<div style='font-size: 13.5px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>🎯 Tier Filter</div>", unsafe_allow_html=True)
+                free_only = st.checkbox("🟢 100% Free Tier Only", value=False, key="or_free_only_toggle")
+
+            if selected_comp == "Custom Model ID":
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Custom OpenRouter Model ID <span style='color: #ef4444;'>*</span></div>", unsafe_allow_html=True)
+                curr_model = inp.get("openrouter_model", "openrouter/free")
+                inp["openrouter_model"] = st.text_input(
+                    "Custom Model ID",
+                    value=curr_model,
+                    placeholder="e.g. meta-llama/llama-3.3-70b-instruct",
+                    label_visibility="collapsed",
+                    key="or_custom_model_input"
+                )
+            else:
+                filtered_models = filter_models(
+                    catalog,
+                    selected_company=selected_comp,
+                    free_only=free_only
+                )
+                if not filtered_models:
+                    # Fallback if filter returns empty
+                    filtered_models = filter_models(catalog, selected_company="All Providers (Free & Meta)")
+
+                model_options = [m["id"] for m in filtered_models]
+                model_labels = {m["id"]: format_model_label(m) for m in filtered_models}
+
+                curr_model = inp.get("openrouter_model", "openrouter/free")
+                curr_idx = model_options.index(curr_model) if curr_model in model_options else 0
+
+                count_label = f"{len(model_options)} models available"
+                st.markdown(f"<div style='margin-top: 10px; font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Select Model <span style='color: #ef4444;'>*</span> <span style='font-size: 12px; font-weight: 400; color: #64748b;'>({count_label})</span></div>", unsafe_allow_html=True)
+                
+                selected_model_id = st.selectbox(
+                    "Select Model",
+                    model_options,
+                    index=curr_idx,
+                    format_func=lambda mid: model_labels.get(mid, mid),
+                    label_visibility="collapsed",
+                    key="or_model_selector"
+                )
+                inp["openrouter_model"] = selected_model_id
+
+                # Show details badge for the selected model
+                chosen_obj = next((m for m in filtered_models if m["id"] == selected_model_id), None)
+                if chosen_obj:
+                    comp_name = chosen_obj.get("company", "Cloud AI")
+                    tier_str = "🟢 100% Free Community Tier" if chosen_obj.get("is_free") else "🔹 Micro-tier (OpenRouter Low-Cost)"
+                    desc = chosen_obj.get("description", "OpenRouter hosted model")
+                    st.markdown(f"""
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 13px; margin-top: 6px; font-size: 12px; color: #334155; line-height: 1.45;">
+                        <span style="font-weight: 700; color: #0f172a;">🏢 Managed by:</span> {comp_name} &nbsp;•&nbsp; 
+                        <span style="font-weight: 700; color: #0f172a;">Tier:</span> {tier_str}<br/>
+                        <span style="color: #64748b;"><b>Model ID:</b> <code>{selected_model_id}</code> — {desc}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
             st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>OpenRouter API Key <span style='color: #ef4444;'>*</span></div>", unsafe_allow_html=True)
