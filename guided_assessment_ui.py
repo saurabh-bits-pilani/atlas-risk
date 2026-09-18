@@ -671,14 +671,25 @@ Copy the **Forwarding URL** (e.g. `https://abcd-1234.ngrok-free.app`) and paste 
                     selected_company=selected_comp,
                     free_only=free_only
                 )
+                company_notice = ""
+                # Strict Company Isolation: NEVER leak other companies when a specific company is selected!
+                if not filtered_models and selected_comp and not selected_comp.startswith("All"):
+                    # Relax free_only for THIS company only so user sees that company's models
+                    filtered_models = filter_models(catalog, selected_company=selected_comp, free_only=False)
+                    if filtered_models:
+                        company_notice = f"ℹ️ **Notice:** Models from **{selected_comp}** on OpenRouter are low-cost micro-tier (~$0.00000005/token) rather than 100% free. Showing all {len(filtered_models)} available {selected_comp} models."
+
                 if not filtered_models:
-                    # Fallback if filter returns empty
-                    filtered_models = filter_models(catalog, selected_company="All Providers (Free & Meta)")
+                    st.warning(f"No models found matching the current filter criteria for {selected_comp}.")
+                    filtered_models = []
+
+                if company_notice:
+                    st.info(company_notice)
 
                 model_options = [m["id"] for m in filtered_models]
                 model_labels = {m["id"]: format_model_label(m) for m in filtered_models}
 
-                curr_model = inp.get("openrouter_model", "openrouter/free")
+                curr_model = inp.get("openrouter_model", "")
                 curr_idx = model_options.index(curr_model) if curr_model in model_options else 0
 
                 count_label = f"{len(model_options)} models available"

@@ -90,3 +90,13 @@ def test_get_available_companies_ordering():
     assert "Google" in comps
     assert "NVIDIA" in comps
     assert "DeepSeek" in comps
+
+
+def test_company_filter_strict_isolation():
+    """Verify that selecting Meta strictly returns ONLY Meta models, with 0% leakage from other providers."""
+    catalog = fetch_live_openrouter_catalog()
+    meta_models = filter_models(catalog, selected_company="Meta (Llama)", free_only=False)
+    assert len(meta_models) >= 10
+    for m in meta_models:
+        assert m["company"] == "Meta (Llama)", f"Non-Meta model leaked: {m}"
+        assert ("meta" in m["id"].lower() or "llama" in m["id"].lower())
