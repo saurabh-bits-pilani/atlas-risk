@@ -415,6 +415,7 @@ def get_available_companies(catalog: List[Dict]) -> List[str]:
         
     # Order: All at top, Meta, Google, NVIDIA, DeepSeek, Alibaba, OpenRouter, then alphabetically
     priority_order = [
+        "ATLAS Sandbox",
         "Meta (Llama)",
         "Google",
         "NVIDIA",
@@ -466,11 +467,14 @@ def filter_models(
                 
         filtered.append(m)
         
-    # Sort: OpenRouter Free router first, then free models, then alphabetically by name
+    # Sort: Demo Sandbox first, then OpenRouter Free router, then free models, then alphabetically by name
     def sort_key(item):
-        is_free_router = 0 if item["id"] == "openrouter/free" else 1
+        if item.get("id") == "demo/sandbox-llm":
+            return (-2, 0, "", "")
+        if item.get("id") == "openrouter/free":
+            return (-1, 0, "", "")
         is_free = 0 if item.get("is_free", False) else 1
-        return (is_free_router, is_free, item.get("company", ""), item.get("name", ""))
+        return (0, is_free, item.get("company", ""), item.get("name", ""))
         
     filtered.sort(key=sort_key)
     return filtered

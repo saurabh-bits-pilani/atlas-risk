@@ -28,10 +28,13 @@ from engines.openrouter_catalog import (
     FALLBACK_OPENROUTER_MODELS
 )
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_cached_openrouter_catalog():
-    """Cache OpenRouter models catalog for 30 minutes for fast zero-latency rendering."""
-    return fetch_live_openrouter_catalog(timeout_sec=3.0)
+    """Cache OpenRouter models catalog with short TTL so updates appear immediately."""
+    cat = fetch_live_openrouter_catalog(timeout_sec=3.0)
+    if not any(m.get("id") == "demo/sandbox-llm" for m in cat):
+        cat.insert(0, FALLBACK_OPENROUTER_MODELS[0])
+    return cat
 
 # Presets for ease of testing
 DEFAULT_PUBLIC_URL = "http://127.0.0.1:8088/public_app"
