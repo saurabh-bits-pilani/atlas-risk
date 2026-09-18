@@ -71,16 +71,35 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                     key=f"dl_html_{rec_id}"
                 )
 
-    # 4 Standardized Counts Metrics Row (NO arbitrary 100% or /100 score)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Issues Observed", counts.get("issues", 0), delta="Action Recommended" if counts.get("issues", 0) > 0 else "None", delta_color="inverse")
-    with c2:
-        st.metric("No Issues Observed", counts.get("no_issue", 0), delta="Verified Passing", delta_color="normal")
-    with c3:
-        st.metric("Unassessed / Blocked", counts.get("not_completed", 0), delta="Requires Access" if counts.get("not_completed", 0) > 0 else "None", delta_color="off")
-    with c4:
-        st.metric("Not Applicable", counts.get("not_applicable", 0))
+    # Top Metrics Row
+    scan_profile = record.get("scan_profile")
+    asr = record.get("attack_success_rate", 0.0)
+    profile_name = record.get("audit_profile_name")
+
+    if scan_profile:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            st.metric("Issues Observed", counts.get("issues", 0), delta="Action Recommended" if counts.get("issues", 0) > 0 else "None", delta_color="inverse")
+        with c2:
+            st.metric("No Issues Observed", counts.get("no_issue", 0), delta="Verified Defended", delta_color="normal")
+        with c3:
+            st.metric("Unassessed / Blocked", counts.get("not_completed", 0), delta="Requires Access" if counts.get("not_completed", 0) > 0 else "None", delta_color="off")
+        with c4:
+            st.metric("Attack Success Rate (ASR)", f"{asr}%", delta="Ideal: 0%" if asr == 0 else f"+{asr}% Breached", delta_color="normal" if asr == 0 else "inverse")
+        with c5:
+            badge_title = "🔬 Full Red-Team" if scan_profile == "full_redteam" else ("🛡️ OWASP Core" if scan_profile == "owasp_core" else "⚡ Quick Scan")
+            tested_probes = record.get("total_prompts_tested", counts.get("issues", 0) + counts.get("no_issue", 0))
+            st.metric("Audit Tier", badge_title, delta=f"{tested_probes} Probes")
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Issues Observed", counts.get("issues", 0), delta="Action Recommended" if counts.get("issues", 0) > 0 else "None", delta_color="inverse")
+        with c2:
+            st.metric("No Issues Observed", counts.get("no_issue", 0), delta="Verified Passing", delta_color="normal")
+        with c3:
+            st.metric("Unassessed / Blocked", counts.get("not_completed", 0), delta="Requires Access" if counts.get("not_completed", 0) > 0 else "None", delta_color="off")
+        with c4:
+            st.metric("Not Applicable", counts.get("not_applicable", 0))
 
     # Executive Summary Box
     if status == "FAILED_CONNECTIVITY":
@@ -113,6 +132,41 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
             st.success("🚦 **Launch Readiness: 🟢 Safe for Guardrailed Pilot** — 0 vulnerabilities detected across all tested security controls. Model maintained safety boundaries.")
         else:
             st.error(f"🚦 **Launch Readiness: 🔴 Action Required Before Public Release** — {issues_cnt} vulnerability detected that an attacker could exploit. Remediations required below.")
+
+        category_scores = record.get("category_scores")
+        if category_scores and isinstance(category_scores, dict):
+            st.markdown("---")
+            st.markdown("### 🛡️ Adversarial Threat Category Defense Breakdown")
+            st.caption("Empirical defense vs breach performance across the 5 canonical MITRE ATLAS and OWASP attack vectors:")
+
+            cat_list = list(category_scores.values())
+            cat_cols = st.columns(len(cat_list))
+            for idx, c_data in enumerate(cat_list):
+                with cat_cols[idx]:
+                    c_tot = c_data.get("total", 0)
+                    c_comp = c_data.get("completed", 0)
+                    c_def = c_data.get("defended", 0)
+                    c_vuln = c_data.get("vulnerable", 0)
+                    resilience_pct = round((c_def / c_comp * 100), 1) if c_comp > 0 else 100.0
+
+                    card_bg = "#f0fdf4" if c_vuln == 0 else "#fef2f2"
+                    card_border = "#bbf7d0" if c_vuln == 0 else "#fca5a5"
+                    res_color = "#16a34a" if c_vuln == 0 else "#dc2626"
+
+                    st.markdown(f"""
+                    <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 8px; padding: 10px 12px; min-height: 120px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{c_data.get('name')}">
+                            {c_data.get('icon', '🎯')} {c_data.get('name')}
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">{c_data.get('atlas_id', '')}</div>
+                        <div style="font-size: 20px; font-weight: 800; color: {res_color}; margin-top: 6px;">
+                            {resilience_pct}%
+                        </div>
+                        <div style="font-size: 11px; color: #475569; margin-top: 2px;">
+                            🛡️ {c_def} Defended | 🚨 {c_vuln} Vuln
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown("### ⚖️ Executive Scorecard: What Went Well vs What Broke")
@@ -165,8 +219,11 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
             st.markdown(f"**Managing Company / Provider:** **{company}**")
             st.markdown(f"**Service Tier:** {tier_str}")
         with ov_col2:
+            tested_count = record.get("total_prompts_tested", counts.get("issues", 0) + counts.get("no_issue", 0))
+            scan_prof_label = record.get("audit_profile_name", "⚡ Quick Sanity Scan")
             st.markdown(f"**Evaluation Timestamp:** {eval_date_display}")
-            st.markdown(f"**Audit Execution Duration:** {dur_str} (10 Security Probes)")
+            st.markdown(f"**Audit Profile:** **{scan_prof_label}**")
+            st.markdown(f"**Execution Duration:** {dur_str} ({tested_count} Probes Tested)")
             st.markdown(f"**Assessment Mode:** {record.get('target_type', 'Public Review').replace('_', ' ').title()}")
             st.markdown(f"**Completion State:** `{status}`")
 

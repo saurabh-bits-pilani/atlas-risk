@@ -17,7 +17,14 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from engines.garak_engine import GarakUnifiedEngine, GARAK_ATLAS_PROBES, DEFAULT_CANARY_SECRET
+from engines.garak_engine import (
+    GarakUnifiedEngine,
+    GARAK_ATLAS_PROBES,
+    DEFAULT_CANARY_SECRET,
+    AUDIT_PROFILES,
+    PROBE_CATEGORIES,
+    OWASP_CORE_ADDITIONAL_PROBES
+)
 from engines.assessment_store import AssessmentStore
 
 
@@ -270,3 +277,194 @@ def test_demo_sandbox_instant_scan_zero_keys(temp_store):
     assert rec["counts"]["no_issue"] > 0, "Demo sandbox defenses should be recorded"
     assert rec["counts"]["not_completed"] == 0, "All 10 probes should execute"
     assert any(f["severity"] == "CRITICAL" for f in rec["findings"]), "Canary leak must be CRITICAL"
+
+
+# ==============================================================================
+# 3-Tier Audit Profiles & Visual Journey Tracker Tests
+# ==============================================================================
+
+def test_audit_profiles_structure():
+    """Verify that all 3 canonical profiles exist with all required metadata."""
+    assert "quick" in AUDIT_PROFILES
+    assert "owasp_core" in AUDIT_PROFILES
+    assert "full_redteam" in AUDIT_PROFILES
+
+    for key, p in AUDIT_PROFILES.items():
+        assert "name" in p
+        assert "short_name" in p
+        assert "prompts_count" in p
+        assert "est_time" in p
+        assert "report_tier" in p
+        assert "description" in p
+
+
+def test_probe_categories_completeness():
+    """Verify that all 5 attack surface categories are registered."""
+    expected_categories = {
+        "direct_injection",
+        "dan_roleplay",
+        "canary_leakage",
+        "ciphers_encoding",
+        "multi_turn_continuation"
+    }
+    registered_ids = {c["id"] for c in PROBE_CATEGORIES}
+    assert expected_categories == registered_ids
+
+    for c in PROBE_CATEGORIES:
+        assert "name" in c
+        assert "icon" in c
+        assert "atlas_id" in c
+        assert "owasp_code" in c
+
+
+def test_probe_suite_scaling():
+    """Verify probe counts for each tier."""
+    engine = GarakUnifiedEngine()
+
+    quick_probes = engine._get_probes_for_profile("quick", DEFAULT_CANARY_SECRET)
+    assert len(quick_probes) == 10
+
+    owasp_probes = engine._get_probes_for_profile("owasp_core", DEFAULT_CANARY_SECRET)
+    assert len(owasp_probes) == 20
+
+    redteam_probes = engine._get_probes_for_profile("full_redteam", DEFAULT_CANARY_SECRET)
+    assert len(redteam_probes) == 30
+
+    # Ensure all redteam probes have valid category_ids
+    for p in redteam_probes:
+        assert "category_id" in p
+        assert p["category_id"] in [c["id"] for c in PROBE_CATEGORIES]
+
+
+def test_rich_visual_journey_callback_payload(temp_store):
+    """Verify that progress_callback receives the rich 4-argument payload with category tallies and ETA."""
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    received_payloads = []
+
+    def tracking_callback(curr, total, msg, data=None):
+        if data:
+            received_payloads.append(data)
+
+    record = engine.run_assessment(
+        persona="persona_3_openrouter",
+        target_name="Test Visual Journey Sandbox",
+        system_prompt=f"System instructions with canary: {DEFAULT_CANARY_SECRET}",
+        canary_secret=DEFAULT_CANARY_SECRET,
+        openrouter_models=["demo/sandbox-llm"],
+        scan_profile="quick",
+        progress_callback=tracking_callback
+    )
+
+    assert len(received_payloads) >= 10
+    last_payload = received_payloads[-1]
+
+    # Verify payload schema
+    assert "current" in last_payload
+    assert "total" in last_payload
+    assert "percent" in last_payload
+    assert "elapsed_sec" in last_payload
+    assert "eta_sec" in last_payload
+    assert "current_probe" in last_payload
+    assert "categories" in last_payload
+    assert "stats" in last_payload
+    assert "recent_telemetry" in last_payload
+
+    # Check categories tally
+    categories = last_payload["categories"]
+    assert len(categories) == 5
+    total_completed = sum(c["completed"] for c in categories)
+    assert total_completed == 10
+
+    # Verify final assessment record structure
+    assert record["scan_profile"] == "quick"
+    assert "attack_success_rate" in record
+    assert "category_scores" in record
+    assert record["total_prompts_tested"] == 10
+    assert record["total_prompts_planned"] == 10
+
+
+def test_redteam_profile_execution_and_asr(temp_store):
+    """Verify full red-team execution across all 30 probes with ASR calculation."""
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    record = engine.run_assessment(
+        persona="persona_3_openrouter",
+        target_name="Deep Red-Team Certification Run",
+        system_prompt=f"Confidential: {DEFAULT_CANARY_SECRET}",
+        canary_secret=DEFAULT_CANARY_SECRET,
+        openrouter_models=["demo/sandbox-llm"],
+        scan_profile="full_redteam"
+    )
+
+    assert record["scan_profile"] == "full_redteam"
+    assert record["total_prompts_tested"] == 30
+    assert record["total_prompts_planned"] == 30
+    assert record["audit_profile_tier"] == "executive_dossier"
+
+    # Verify ASR calculation
+    issues = record["counts"]["issues"]
+    total = record["total_prompts_tested"]
+    expected_asr = round((issues / total) * 100, 1)
+    assert record["attack_success_rate"] == expected_asr
+
+    # Verify each category has completed items
+    category_scores = record["category_scores"]
+    for cid in ["direct_injection", "dan_roleplay", "canary_leakage", "ciphers_encoding", "multi_turn_continuation"]:
+        assert cid in category_scores
+        assert category_scores[cid]["total"] > 0
+        assert category_scores[cid]["completed"] == category_scores[cid]["total"]
+        assert category_scores[cid]["status"] == "completed"
+
+
+def test_early_stop_button_handling(temp_store):
+    """Verify that Stop button cleanly stops, certifies partial results, and marks skipped probes as unassessed."""
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    execution_steps = 0
+
+    def mock_stop_checker():
+        nonlocal execution_steps
+        execution_steps += 1
+        return execution_steps >= 4  # Stop on 4th probe
+
+    record = engine.run_assessment(
+        persona="persona_3_openrouter",
+        target_name="Stopped Scan Test",
+        system_prompt="Test",
+        canary_secret=DEFAULT_CANARY_SECRET,
+        openrouter_models=["demo/sandbox-llm"],
+        scan_profile="full_redteam",
+        stop_checker=mock_stop_checker
+    )
+
+    assert record["status"] == "STOPPED"
+    # Ran 3 probes, remaining 27 marked unassessed
+    assert record["total_prompts_tested"] == 3
+    assert len(record["unassessed_areas"]) == 27
+    assert any("Execution halted by user request" in u["reason"] for u in record["unassessed_areas"])
+
+
+def test_legacy_3arg_progress_callback_backward_compatibility(temp_store):
+    """Verify that callers passing a 3-argument callback do not encounter TypeError."""
+    engine = GarakUnifiedEngine(store=temp_store)
+
+    call_count = 0
+
+    def legacy_cb(curr, total, msg):
+        nonlocal call_count
+        call_count += 1
+
+    record = engine.run_assessment(
+        persona="persona_3_openrouter",
+        target_name="Legacy Callback Test",
+        system_prompt="Test",
+        canary_secret=DEFAULT_CANARY_SECRET,
+        openrouter_models=["demo/sandbox-llm"],
+        scan_profile="quick",
+        progress_callback=legacy_cb
+    )
+
+    assert call_count >= 10
+    assert record["status"] in ["COMPLETE", "PARTIAL"]
+
