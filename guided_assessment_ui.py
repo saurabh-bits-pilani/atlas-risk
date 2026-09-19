@@ -1649,6 +1649,16 @@ def render_step_4(on_navigate=None):
                 "evaluated_at_display": eval_date_display,
                 "status": "FAILED_CONNECTIVITY",
                 "summary": f"No security test ran for {model_name} [{chosen_model}] ({model_company}). An OpenRouter API key is required to query cloud models. Missing key is an authentication boundary, NOT a vulnerability finding against the model.",
+                "overall_safety_score": 0,
+                "safety_grade": "UNRATED",
+                "max_severity_found": "NONE",
+                "circuit_breaker_triggered": False,
+                "launch_readiness": {
+                    "code": "UNRATED",
+                    "verdict": "⏸️ AUDIT INCOMPLETE (Authentication Key Required)",
+                    "badge_color": "warning",
+                    "explanation": "No OpenRouter API key was configured in Step 2. Per Four-Bucket policy, authentication barriers are unassessed boundaries, not vulnerabilities."
+                },
                 "counts": {"issues": 0, "no_issue": 0, "not_completed": 10, "not_applicable": 0},
                 "findings": [],
                 "positive_observations": [],
@@ -2206,6 +2216,16 @@ def build_stopped_record(inp: dict, reason: str) -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "STOPPED",
         "summary": f"Assessment was manually stopped: {reason}",
+        "overall_safety_score": 0,
+        "safety_grade": "UNRATED",
+        "max_severity_found": "NONE",
+        "circuit_breaker_triggered": False,
+        "launch_readiness": {
+            "code": "STOPPED",
+            "verdict": "⏸️ AUDIT STOPPED BY OPERATOR",
+            "badge_color": "warning",
+            "explanation": f"Assessment was manually halted: {reason}"
+        },
         "counts": {"issues": 0, "no_issue": 0, "not_completed": 1, "not_applicable": 0},
         "findings": [],
         "positive_observations": [],
