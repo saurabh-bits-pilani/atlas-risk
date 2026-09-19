@@ -23,7 +23,16 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
 
     model_name = record.get("model_name") or target
     model_id = record.get("model_id") or target
-    company = record.get("model_company") or "OpenRouter / Cloud AI"
+    target_type = record.get("target_type", "")
+    default_company = (
+        "GitHub / Open Source" if target_type == "github"
+        else ("Web Application / SaaS" if target_type == "website"
+        else ("Architecture Threat Model" if target_type == "questionnaire"
+        else ("AI Chatbot Endpoint" if target_type == "chatbot"
+        else ("Ollama (Local AI)" if target_type == "local_model"
+        else "OpenRouter / Cloud AI"))))
+    )
+    company = record.get("model_company") or default_company
     tier_str = record.get("model_tier") or ("🟢 100% Free Tier" if (":free" in str(model_id) or model_id == "openrouter/free") else "🔹 Standard Tier")
     duration = record.get("execution_duration_sec", "")
     dur_str = f"{duration}s" if duration != "" else "Quick Scan"

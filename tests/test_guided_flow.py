@@ -122,6 +122,61 @@ class TestGuidedFlow(unittest.TestCase):
         self.assertIn("FinanceAssistant", q_rec["name"])
 
 
+    def test_universal_3tier_profiles_and_scorecard(self):
+        """Verify universal 3-tier audit profiles, dynamic scorecard computation, and circuit breaker."""
+        from guided_assessment_ui import (
+            get_audit_profiles_for_target,
+            compute_executive_scorecard,
+            inspect_github_repository,
+            evaluate_questionnaire_inputs
+        )
+
+        # 1. Verify 3-Tier profiles available for all target modules
+        for t_type in ["website", "github", "questionnaire", "openrouter", "local_model", "chatbot"]:
+            profs = get_audit_profiles_for_target(t_type)
+            self.assertIn("quick", profs)
+            self.assertIn("owasp_core", profs)
+            self.assertIn("full_redteam", profs)
+            self.assertGreater(profs["full_redteam"]["prompts_count"], profs["owasp_core"]["prompts_count"])
+            self.assertGreater(profs["owasp_core"]["prompts_count"], profs["quick"]["prompts_count"])
+
+        # 2. Verify scorecard & circuit breaker behavior
+        # Case A: 100% clean defenses -> Grade A Approved
+        clean_sc = compute_executive_scorecard([], [{"domain": "D1"} for _ in range(10)], 10)
+        self.assertEqual(clean_sc["overall_safety_score"], 100)
+        self.assertEqual(clean_sc["safety_grade"], "Grade A")
+        self.assertEqual(clean_sc["launch_readiness"]["code"], "APPROVED")
+        self.assertFalse(clean_sc["circuit_breaker_triggered"])
+
+        # Case B: 1 Critical Leak among 9 Defenses (90% safe) -> Weakest Link Circuit Breaker BLOCKED!
+        crit_finding = [{"domain": "Data", "severity": "CRITICAL", "title": "Canary token leaked"}]
+        defenses = [{"domain": "D"} for _ in range(9)]
+        crit_sc = compute_executive_scorecard(crit_finding, defenses, 10)
+        self.assertEqual(crit_sc["overall_safety_score"], 90)
+        self.assertTrue(crit_sc["circuit_breaker_triggered"])
+        self.assertEqual(crit_sc["launch_readiness"]["code"], "BLOCKED")
+        self.assertIn("Circuit Breaker", crit_sc["launch_readiness"]["explanation"])
+
+        # Case C: High severity -> ACTION_REQUIRED
+        high_finding = [{"domain": "Injection", "severity": "HIGH", "title": "Prompt injection bypass"}]
+        high_sc = compute_executive_scorecard(high_finding, defenses, 10)
+        self.assertEqual(high_sc["launch_readiness"]["code"], "ACTION_REQUIRED")
+        self.assertFalse(high_sc["circuit_breaker_triggered"])
+
+        # 3. Verify GitHub and Questionnaire records include scorecard fields
+        gh_rec = inspect_github_repository("https://github.com/expressjs/express", branch="master")
+        self.assertIn("overall_safety_score", gh_rec)
+        self.assertIn("safety_grade", gh_rec)
+        self.assertIn("launch_readiness", gh_rec)
+        self.assertIn("circuit_breaker_triggered", gh_rec)
+
+        q_rec = evaluate_questionnaire_inputs({"app_name": "TestAI", "deployment_scope": "Public Web Interface", "uses_rag": "No"})
+        self.assertIn("overall_safety_score", q_rec)
+        self.assertIn("safety_grade", q_rec)
+        self.assertIn("launch_readiness", q_rec)
+        self.assertIn("circuit_breaker_triggered", q_rec)
+
+
 if __name__ == "__main__":
     unittest.main()
 

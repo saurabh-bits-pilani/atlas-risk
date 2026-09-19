@@ -18,8 +18,10 @@ from datetime import datetime, timezone
 import importlib
 import guided_assessment_ui
 import home_view
+import assessment_results_view
 importlib.reload(guided_assessment_ui)
 importlib.reload(home_view)
+importlib.reload(assessment_results_view)
 
 from guided_assessment_ui import render_guided_assessment_wizard
 from assessment_results_view import render_assessment_results
