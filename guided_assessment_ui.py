@@ -1903,8 +1903,26 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     if is_live:
         for iss in raw_issues:
             dom = iss.get("domain", "General")
-            sev = "HIGH" if any(k in iss.get("issue", "").lower() for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
+            iss_text = iss.get("issue", "").lower()
+            sev = "HIGH" if any(k in iss_text for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
             fix_text = iss.get("fix", "Configure recommended HTTP security response headers on web server or reverse proxy.")
+
+            # Dynamically derive Web taxonomy based on actual evidence
+            if any(k in iss_text for k in ["hsts", "tls", "ssl", "plaintext", "https", "cleartext"]):
+                compliance_str = "OWASP Top 10 Web (A02: Cryptographic Failures) | MITRE ATLAS AML.T0051"
+            elif any(k in iss_text for k in ["cookie", "samesite", "httponly", "session"]):
+                compliance_str = "OWASP Top 10 Web (A07: Identification & Authentication Failures) | MITRE ATLAS AML.T0057"
+            elif any(k in iss_text for k in [".env", "secret", "credential", "admin", "robots.txt", "path"]):
+                compliance_str = "OWASP Top 10 Web (A01: Broken Access Control) | MITRE ATLAS AML.T0051"
+            elif any(k in iss_text for k in ["sri", "subresource", "integrity"]):
+                compliance_str = "OWASP Top 10 Web (A08: Software & Data Integrity Failures) | MITRE ATLAS AML.T0051"
+            elif any(k in iss_text for k in ["injection", "xss", "cross-site"]):
+                compliance_str = "OWASP Top 10 Web (A03: Injection) | MITRE ATLAS AML.T0051"
+            elif any(k in iss_text for k in ["alt", "lang", "viewport", "title", "accessibility", "aria"]):
+                compliance_str = "WCAG 2.1 / Web Usability Standards | MITRE ATLAS AML.TA0002"
+            else:
+                compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
+
             findings.append({
                 "domain": dom,
                 "severity": sev,
@@ -1917,7 +1935,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
                 "business_impact": "Exposes web assets to framing/clickjacking, SSL downgrade, or credential exposure.",
                 "attack_scenario": f"An attacker targets {target_url} via cross-origin eavesdropping, iframe encapsulation, or path fuzzing.",
                 "code_fix": fix_text,
-                "compliance": "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
+                "compliance": compliance_str
             })
         positive_obs = list(raw_positives)
     else:

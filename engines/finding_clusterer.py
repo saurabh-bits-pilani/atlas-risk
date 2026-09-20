@@ -108,6 +108,12 @@ def _derive_evidence_signature(trial: ExecutionTrial, target_type: str = "") -> 
             return "WEB:EXPOSED_ENV_SECRETS"
         elif "robots.txt" in resp_lower or "path" in resp_lower or "admin" in resp_lower:
             return "WEB:SENSITIVE_PATH_DISCLOSURE"
+        elif "sri" in resp_lower or "subresource" in resp_lower or "integrity" in resp_lower:
+            return "WEB:MISSING_SUBRESOURCE_INTEGRITY"
+        elif "cleartext" in resp_lower or "plaintext" in resp_lower or "form method" in resp_lower:
+            return "WEB:CLEARTEXT_DATA_TRANSMISSION"
+        elif "injection" in resp_lower or "xss" in resp_lower or "cross-site" in resp_lower:
+            return "WEB:INJECTION_VULNERABILITY"
         elif "alt" in resp_lower or "accessibility" in resp_lower or "viewport" in resp_lower or "lang" in resp_lower:
             return "WEB:ACCESSIBILITY_DEFICIT"
         else:
@@ -223,7 +229,7 @@ def cluster_trials_into_findings(
 
         severity = _derive_severity(data["impact"], data["evidence_sig"], pf_id)
 
-        # Title, OWASP classification & Hypothesis (Domain-Isolated)
+        # Title, OWASP classification & Hypothesis (Domain-Isolated by Actual Evidence)
         if data["evidence_sig"].startswith("WEB:"):
             sig = data["evidence_sig"]
             if sig == "WEB:MISSING_CSP":
@@ -233,9 +239,29 @@ def cluster_trials_into_findings(
                 fix = "Configure a robust Content-Security-Policy HTTP response header in your web server / reverse proxy (e.g. Nginx, Apache, or Cloudflare). Example: default-src 'self'; script-src 'self' https://trustedcdn.com."
             elif sig == "WEB:MISSING_HSTS":
                 title = "Missing HTTP Strict Transport Security (HSTS) Header"
-                owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
+                owasp = "OWASP Top 10 Web A02:2021 - Cryptographic Failures"
                 hyp_stmt = "The application does not enforce encrypted HTTPS transport via Strict-Transport-Security, allowing potential man-in-the-middle protocol downgrade attacks."
                 fix = "Enforce Strict-Transport-Security: max-age=31536000; includeSubDomains; preload in web server or CDN configurations."
+            elif sig == "WEB:CLEARTEXT_DATA_TRANSMISSION":
+                title = "Cleartext Protocol / Unencrypted Data Submission"
+                owasp = "OWASP Top 10 Web A02:2021 - Cryptographic Failures"
+                hyp_stmt = "Data or forms are transmitted over unencrypted HTTP channels, exposing sensitive data to local network eavesdropping."
+                fix = "Enforce HTTPS transport encryption and automatic redirects on all endpoints."
+            elif sig == "WEB:INSECURE_COOKIES":
+                title = "Insecure Session / Authentication Cookie Attributes"
+                owasp = "OWASP Top 10 Web A07:2021 - Identification and Authentication Failures"
+                hyp_stmt = "Cookies are transmitted without Secure, HttpOnly, or SameSite attributes, exposing session tokens to interception, XSS extraction, or CSRF."
+                fix = "Ensure all session cookies include Secure, HttpOnly, and SameSite=Lax (or Strict) flags."
+            elif sig == "WEB:EXPOSED_ENV_SECRETS":
+                title = "Exposed Environment Configuration or API Secret"
+                owasp = "OWASP Top 10 Web A01:2021 - Broken Access Control"
+                hyp_stmt = "Publicly accessible files (e.g. .env, api keys, or debug endpoints) leak operational credentials to unauthorized visitors."
+                fix = "Restrict web server access to dotfiles (.env, .git) and rotate any disclosed API keys immediately."
+            elif sig == "WEB:SENSITIVE_PATH_DISCLOSURE":
+                title = "Exposed Sensitive Path or Administrative Endpoint"
+                owasp = "OWASP Top 10 Web A01:2021 - Broken Access Control"
+                hyp_stmt = "Administrative or staging interfaces are accessible without authentication or IP allowlisting."
+                fix = "Implement strict authentication checks and IP restrictions on administrative subpaths."
             elif sig == "WEB:MISSING_FRAME_PROTECTION":
                 title = "Missing Clickjacking Protection (X-Frame-Options / Frame-Ancestors)"
                 owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
@@ -251,21 +277,16 @@ def cluster_trials_into_findings(
                 owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
                 hyp_stmt = "The application does not declare a Referrer-Policy header, potentially leaking internal URL parameters to external third parties."
                 fix = "Configure Referrer-Policy: strict-origin-when-cross-origin on web server or reverse proxy."
-            elif sig == "WEB:INSECURE_COOKIES":
-                title = "Insecure Session / Cookie Configuration"
-                owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
-                hyp_stmt = "Cookies are transmitted without Secure, HttpOnly, or SameSite attributes, exposing session tokens to interception and XSS extraction."
-                fix = "Ensure all session cookies include Secure, HttpOnly, and SameSite=Lax (or Strict) flags."
-            elif sig == "WEB:EXPOSED_ENV_SECRETS":
-                title = "Exposed Environment Configuration or API Secret"
-                owasp = "OWASP Top 10 Web A01:2021 - Broken Access Control"
-                hyp_stmt = "Publicly accessible files (e.g. .env, api keys, or debug endpoints) leak operational credentials to unauthorized visitors."
-                fix = "Restrict web server access to dotfiles (.env, .git) and rotate any disclosed API keys immediately."
-            elif sig == "WEB:SENSITIVE_PATH_DISCLOSURE":
-                title = "Exposed Sensitive Path or Administrative Endpoint"
-                owasp = "OWASP Top 10 Web A01:2021 - Broken Access Control"
-                hyp_stmt = "Administrative or staging interfaces are accessible without authentication or IP allowlisting."
-                fix = "Implement strict authentication checks and IP restrictions on administrative subpaths."
+            elif sig == "WEB:MISSING_SUBRESOURCE_INTEGRITY":
+                title = "Missing Subresource Integrity (SRI) on External Scripts"
+                owasp = "OWASP Top 10 Web A08:2021 - Software and Data Integrity Failures"
+                hyp_stmt = "Third-party scripts from external CDNs lack integrity hashes, exposing the browser to compromised upstream scripts."
+                fix = "Add integrity='sha384-...' and crossorigin='anonymous' attributes to external script tags."
+            elif sig == "WEB:INJECTION_VULNERABILITY":
+                title = "Unvalidated Input / Cross-Site Scripting (XSS)"
+                owasp = "OWASP Top 10 Web A03:2021 - Injection"
+                hyp_stmt = "Unsanitized user inputs are accepted into HTML contexts, allowing potential script injection."
+                fix = "Implement contextual output encoding and parameterized input validation."
             elif sig == "WEB:ACCESSIBILITY_DEFICIT":
                 title = "Web Accessibility and Structural Compliance Deficit"
                 owasp = "WCAG 2.1 / Web Usability Standards"

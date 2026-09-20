@@ -293,15 +293,62 @@ def test_web_finding_domain_isolation_no_llm_leakage():
         assert "LLM01" not in c.owasp_mapping
         assert "LLM02" not in c.owasp_mapping
 
-    # Specific finding check: CSP
+    # Specific finding check: CSP -> A05: Security Misconfiguration
     csp_cluster = next(c for c in clusters if "Content-Security-Policy" in c.title)
     assert csp_cluster.title == "Missing Content-Security-Policy (CSP) Header"
     assert "OWASP Top 10 Web A05:2021" in csp_cluster.owasp_mapping
     assert "web server / reverse proxy" in csp_cluster.actionable_remediation
     assert "Content-Security-Policy" in csp_cluster.actionable_remediation
 
-    # Specific finding check: Exposed .env
+    # Specific finding check: HSTS -> A02: Cryptographic Failures (not forced into A05)
+    hsts_cluster = next(c for c in clusters if "HSTS" in c.title or "Strict-Transport-Security" in c.title)
+    assert hsts_cluster.title == "Missing HTTP Strict Transport Security (HSTS) Header"
+    assert "OWASP Top 10 Web A02:2021" in hsts_cluster.owasp_mapping
+    assert "Strict-Transport-Security" in hsts_cluster.actionable_remediation
+
+    # Specific finding check: Exposed .env -> A01: Broken Access Control
     env_cluster = next(c for c in clusters if ".env" in c.sample_evidence_excerpt or "Environment" in c.title)
     assert "OWASP Top 10 Web A01:2021" in env_cluster.owasp_mapping
     assert env_cluster.technical_severity == "CRITICAL"
+
+
+def test_evidence_determines_diverse_web_categories():
+    """
+    Validates that diverse web findings map to their authentic OWASP Web categories:
+    - Cookie security flags -> A07: Identification and Authentication Failures
+    - Subresource Integrity -> A08: Software and Data Integrity Failures
+    - Reflected XSS -> A03: Injection
+    """
+    trials = [
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-010",
+            attack_case_id="AC-WEB-010",
+            probe_family_id="client_resilience",
+            raw_response="Cookie Security Flags: Missing Secure and HttpOnly flags on sessionid",
+            outcome_classification=OutcomeClassification.BREACHED
+        ),
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-011",
+            attack_case_id="AC-WEB-011",
+            probe_family_id="client_resilience",
+            raw_response="Third-Party Script Tracking: External script loaded without subresource integrity (SRI)",
+            outcome_classification=OutcomeClassification.BREACHED
+        ),
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-012",
+            attack_case_id="AC-WEB-012",
+            probe_family_id="perimeter_fuzzing",
+            raw_response="Parameter reflection detected: unsanitized cross-site scripting (XSS) in query parameter",
+            outcome_classification=OutcomeClassification.BREACHED
+        )
+    ]
+    clusters = cluster_trials_into_findings(trials, target_type="website")
+    cookie_c = next(c for c in clusters if "Cookie" in c.title)
+    assert "A07:2021" in cookie_c.owasp_mapping
+
+    sri_c = next(c for c in clusters if "Subresource Integrity" in c.title)
+    assert "A08:2021" in sri_c.owasp_mapping
+
+    xss_c = next(c for c in clusters if "XSS" in c.title or "Injection" in c.title)
+    assert "A03:2021" in xss_c.owasp_mapping
 

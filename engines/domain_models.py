@@ -86,10 +86,13 @@ def compute_webapp_posture_model(
     Protected login areas affect Public Surface Coverage, NEVER penalizing the posture score.
     If evaluated_defended_count and evaluated_breached_count are provided (from execution trials),
     the posture score directly reflects those evaluated checks:
-      passed = evaluated_defended_count
-      failed = evaluated_breached_count
-      total_evaluated = passed + failed
-      ASPS = round((passed / total_evaluated) * 100.0, 1)
+      passed = evaluated_defended_count (D)
+      failed = evaluated_breached_count (B)
+      total_evaluated = D + B
+      ASPS = (D / (D + B)) * 100
+      
+      For example, 20 defended + 5 breached:
+      20 / 25 * 100 = 80.0%
     """
     if evaluated_defended_count is not None and evaluated_breached_count is not None:
         passed = evaluated_defended_count
