@@ -263,10 +263,10 @@ def cluster_trials_into_findings(
                 hyp_stmt = "Administrative or staging interfaces are accessible without authentication or IP allowlisting."
                 fix = "Implement strict authentication checks and IP restrictions on administrative subpaths."
             elif sig == "WEB:MISSING_FRAME_PROTECTION":
-                title = "Missing Clickjacking Protection (X-Frame-Options / Frame-Ancestors)"
+                title = "No Effective Clickjacking Protection Detected"
                 owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
-                hyp_stmt = "The web application allows framing from arbitrary external origins, making it vulnerable to UI redressing and clickjacking attacks."
-                fix = "Set X-Frame-Options: DENY or SAMEORIGIN, or specify frame-ancestors 'self' within Content-Security-Policy."
+                hyp_stmt = "Neither X-Frame-Options header nor Content-Security-Policy frame-ancestors directive was detected, leaving the interface vulnerable to UI redressing."
+                fix = "Configure Content-Security-Policy with `frame-ancestors 'self'` (or 'none'), or declare `X-Frame-Options: SAMEORIGIN` on your web server or reverse proxy."
             elif sig == "WEB:MISSING_CONTENT_TYPE_OPTIONS":
                 title = "Missing X-Content-Type-Options Header"
                 owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"
@@ -288,10 +288,24 @@ def cluster_trials_into_findings(
                 hyp_stmt = "Unsanitized user inputs are accepted into HTML contexts, allowing potential script injection."
                 fix = "Implement contextual output encoding and parameterized input validation."
             elif sig == "WEB:ACCESSIBILITY_DEFICIT":
-                title = "Web Accessibility and Structural Compliance Deficit"
+                ev_lower = data["sample_evidence"].lower()
                 owasp = "WCAG 2.1 / Web Usability Standards"
-                hyp_stmt = "Critical accessibility signals (e.g. missing image alt text, html lang, or mobile viewport meta) hinder screen readers and assistive technology."
-                fix = "Update root HTML templates to include lang attribute, viewport meta tag, and descriptive alt attributes on images."
+                if "alt" in ev_lower or "image" in ev_lower:
+                    title = "Images Missing Descriptive Alternative (alt) Text"
+                    hyp_stmt = "Discovered images lack alternative text attributes, hindering screen readers and non-visual user agents."
+                    fix = "Ensure all <img> elements include descriptive alt=\"...\" text (or alt=\"\" for decorative images) to comply with WCAG 2.1 SC 1.1.1."
+                elif "lang" in ev_lower:
+                    title = "HTML Document Language Attribute Missing"
+                    hyp_stmt = "The root <html> tag omits a lang attribute, impairing accessibility tools and search indexing."
+                    fix = "Update your root <html> tag to declare the document language, e.g. <html lang=\"en\">."
+                elif "viewport" in ev_lower:
+                    title = "Missing Mobile Viewport Meta Tag"
+                    hyp_stmt = "The document head omits a mobile viewport declaration, degrading responsive mobile layout scaling."
+                    fix = "Add <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> inside document <head>."
+                else:
+                    title = "Web Accessibility and Structural Compliance Deficit"
+                    hyp_stmt = "Critical accessibility signals hinder screen readers and assistive technology."
+                    fix = "Review root HTML templates and layout components to comply with WCAG 2.1 accessibility standards."
             else:
                 title = "Web Security Misconfiguration"
                 owasp = "OWASP Top 10 Web A05:2021 - Security Misconfiguration"

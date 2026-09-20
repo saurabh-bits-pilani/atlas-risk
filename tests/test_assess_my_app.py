@@ -95,6 +95,69 @@ class TestAssessMyApp(unittest.TestCase):
         self.assertIn(f"**Issues Observed:** {len(self.res_hybrid['issues_observed'])}", report_md)
         self.assertIn(f"**Protected / Unassessed Sections:** {len(self.res_hybrid['unassessed_areas'])}", report_md)
 
+    def test_clickjacking_case_1_xfo_present_no_finding(self):
+        """Case 1: X-Frame-Options: DENY -> Protected, no clickjacking finding."""
+        with unittest.mock.patch("urllib.request.urlopen") as mock_url:
+            mock_resp = unittest.mock.MagicMock()
+            mock_resp.getcode.return_value = 200
+            mock_resp.headers = {
+                "content-type": "text/html",
+                "x-frame-options": "DENY"
+            }
+            mock_resp.read.return_value = b"<html><head><title>Test</title></head><body><h1>Hello</h1></body></html>"
+            mock_resp.__enter__.return_value = mock_resp
+            mock_url.return_value = mock_resp
+
+            res = self.inspector.inspect_url("https://example.com")
+            # Must NOT have clickjacking issue
+            issues = [iss["issue"] for iss in res["issues_observed"]]
+            self.assertFalse(any("clickjacking" in iss.lower() for iss in issues))
+            # Must have verified positive observation
+            pos = [p["observation"] for p in res["positive_observations"]]
+            self.assertTrue(any("clickjacking" in p.lower() or "x-frame-options" in p.lower() for p in pos))
+
+    def test_clickjacking_case_2_no_xfo_csp_frame_ancestors_defended(self):
+        """Case 2: No XFO + CSP with frame-ancestors 'self' -> Protected via CSP Level 2/3, no clickjacking finding."""
+        with unittest.mock.patch("urllib.request.urlopen") as mock_url:
+            mock_resp = unittest.mock.MagicMock()
+            mock_resp.getcode.return_value = 200
+            mock_resp.headers = {
+                "content-type": "text/html",
+                "content-security-policy": "default-src 'self'; frame-ancestors 'self';"
+            }
+            mock_resp.read.return_value = b"<html><head><title>Test</title></head><body><h1>Hello</h1></body></html>"
+            mock_resp.__enter__.return_value = mock_resp
+            mock_url.return_value = mock_resp
+
+            res = self.inspector.inspect_url("https://example.com")
+            # Must NOT have clickjacking issue
+            issues = [iss["issue"] for iss in res["issues_observed"]]
+            self.assertFalse(any("clickjacking" in iss.lower() for iss in issues))
+            # Must have verified positive observation for frame-ancestors
+            pos = [p["observation"] for p in res["positive_observations"]]
+            self.assertTrue(any("frame-ancestors" in p.lower() or "clickjacking" in p.lower() for p in pos))
+
+    def test_clickjacking_case_3_both_absent_reports_no_effective_protection(self):
+        """Case 3: No XFO + CSP lacks frame-ancestors -> Reports 'No effective clickjacking protection detected'."""
+        with unittest.mock.patch("urllib.request.urlopen") as mock_url:
+            mock_resp = unittest.mock.MagicMock()
+            mock_resp.getcode.return_value = 200
+            mock_resp.headers = {
+                "content-type": "text/html",
+                "content-security-policy": "default-src 'self'; script-src 'self';"
+            }
+            mock_resp.read.return_value = b"<html><head><title>Test</title></head><body><h1>Hello</h1></body></html>"
+            mock_resp.__enter__.return_value = mock_resp
+            mock_url.return_value = mock_resp
+
+            res = self.inspector.inspect_url("https://example.com")
+            # Must have evidence-based issue
+            issues = [iss["issue"] for iss in res["issues_observed"]]
+            self.assertTrue(any("No effective clickjacking protection detected" in iss for iss in issues))
+            matching_issue = next(iss for iss in res["issues_observed"] if "clickjacking" in iss["issue"].lower())
+            self.assertIn("CSP lacks `frame-ancestors`", matching_issue["evidence"])
+            self.assertIn("frame-ancestors", matching_issue["fix"])
+
 
 if __name__ == "__main__":
     unittest.main()

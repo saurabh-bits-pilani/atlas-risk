@@ -1978,7 +1978,15 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             result_tag = "🟡 Target Unreachable"
             c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
-            matching_issue = next((iss for iss in raw_issues if p_name_lower in iss.get("issue", "").lower() or any(w in iss.get("issue", "").lower() for w in p_name_lower.split()[:2])), None)
+            matching_issue = next(
+                (
+                    iss for iss in raw_issues
+                    if p_name_lower in iss.get("issue", "").lower()
+                    or any(w in iss.get("issue", "").lower() for w in p_name_lower.split()[:2])
+                    or (("clickjacking" in p_name_lower or "x-frame-options" in p_name_lower or "embedding" in p_name_lower) and "clickjacking" in iss.get("issue", "").lower())
+                ),
+                None
+            )
             matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
 
             if matching_issue:

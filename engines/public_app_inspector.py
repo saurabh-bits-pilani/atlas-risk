@@ -461,14 +461,13 @@ class PublicAppInspector:
                 "fix": "Enforce HTTPS via automatic redirect on your hosting provider or reverse proxy."
             })
 
-        # Check Security Headers
-        security_headers = {
+        # Check Standard Security Headers
+        standard_headers = {
             "x-content-type-options": ("X-Content-Type-Options", "nosniff", "Add `X-Content-Type-Options: nosniff` header in your hosting configuration to prevent MIME-sniffing attacks."),
-            "x-frame-options": ("X-Frame-Options", "DENY or SAMEORIGIN", "Add `X-Frame-Options: DENY` or `SAMEORIGIN` to defend against UI clickjacking."),
             "referrer-policy": ("Referrer-Policy", "strict-origin-when-cross-origin", "Set `Referrer-Policy: strict-origin-when-cross-origin` to avoid leaking sensitive URLs in outgoing requests.")
         }
 
-        for h_key, (h_name, expected, fix_code) in security_headers.items():
+        for h_key, (h_name, expected, fix_code) in standard_headers.items():
             if h_key in headers_lower:
                 results["what_we_verified"].append({
                     "domain": "Security / Privacy",
@@ -489,12 +488,57 @@ class PublicAppInspector:
                     "fix": fix_code
                 })
 
-        # Check Content-Security-Policy
-        if "content-security-policy" in headers_lower:
+        # Check Content-Security-Policy & Clickjacking Protection
+        csp_val = headers_lower.get("content-security-policy", "")
+        has_csp = "content-security-policy" in headers_lower
+        has_csp_frame_ancestors = bool(re.search(r"frame-ancestors\s+[^;]+", csp_val, re.IGNORECASE))
+        has_xfo = "x-frame-options" in headers_lower
+        xfo_val = headers_lower.get("x-frame-options", "")
+
+        # 1. Clickjacking Protection Check (W3C CSP Level 2/3 and X-Frame-Options)
+        if has_xfo:
+            results["what_we_verified"].append({
+                "domain": "Security / Privacy",
+                "item": "Clickjacking Protection (X-Frame-Options)",
+                "evidence": f"`X-Frame-Options: {xfo_val}`",
+                "status": "VERIFIED"
+            })
+            results["positive_observations"].append({
+                "area": "Security / Privacy",
+                "observation": f"Clickjacking protection is actively enforced via `X-Frame-Options: {xfo_val}`.",
+                "evidence": f"X-Frame-Options: {xfo_val}"
+            })
+        elif has_csp_frame_ancestors:
+            fa_match = re.search(r"frame-ancestors\s+[^;]+", csp_val, re.IGNORECASE)
+            fa_directive = fa_match.group(0) if fa_match else "frame-ancestors"
+            results["what_we_verified"].append({
+                "domain": "Security / Privacy",
+                "item": "Clickjacking Protection (CSP frame-ancestors)",
+                "evidence": f"Enforced via `{fa_directive}` in Content-Security-Policy",
+                "status": "VERIFIED"
+            })
+            results["positive_observations"].append({
+                "area": "Security / Privacy",
+                "observation": "Clickjacking protection is actively enforced via CSP `frame-ancestors` directive.",
+                "evidence": f"`{fa_directive}` (modern CSP Level 2/3 standard)"
+            })
+        else:
+            results["issues_observed"].append({
+                "domain": "Security / Privacy",
+                "issue": "No effective clickjacking protection detected",
+                "evidence": (
+                    f"No `X-Frame-Options` header found and "
+                    f"{'CSP lacks `frame-ancestors` directive' if has_csp else 'no `Content-Security-Policy` header found'}."
+                ),
+                "fix": "Configure Content-Security-Policy with `frame-ancestors 'self'` (or 'none'), or declare `X-Frame-Options: SAMEORIGIN` on your web server or reverse proxy."
+            })
+
+        # 2. General Content-Security-Policy Check
+        if has_csp:
             results["positive_observations"].append({
                 "area": "Security / Privacy",
                 "observation": "Content-Security-Policy (CSP) is active.",
-                "evidence": f"`{headers_lower['content-security-policy'][:60]}...`"
+                "evidence": f"`{csp_val[:60]}...`"
             })
         else:
             results["issues_observed"].append({
