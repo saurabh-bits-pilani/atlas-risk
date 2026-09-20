@@ -77,14 +77,26 @@ def compute_webapp_posture_model(
     issues: List[Dict[str, Any]],
     positives: List[Any],
     unassessed_pages: List[Any],
-    pages_inspected: List[Any]
+    pages_inspected: List[Any],
+    evaluated_defended_count: Optional[int] = None,
+    evaluated_breached_count: Optional[int] = None,
 ) -> WebAppPostureModelResult:
     """
     Computes web application posture score.
     Protected login areas affect Public Surface Coverage, NEVER penalizing the posture score.
+    If evaluated_defended_count and evaluated_breached_count are provided (from execution trials),
+    the posture score directly reflects those evaluated checks:
+      passed = evaluated_defended_count
+      failed = evaluated_breached_count
+      total_evaluated = passed + failed
+      ASPS = round((passed / total_evaluated) * 100.0, 1)
     """
-    passed = len(positives)
-    failed = len(issues)
+    if evaluated_defended_count is not None and evaluated_breached_count is not None:
+        passed = evaluated_defended_count
+        failed = evaluated_breached_count
+    else:
+        passed = len(positives)
+        failed = len(issues)
     total_evaluated = passed + failed
 
     asps = round((passed / total_evaluated) * 100.0, 1) if total_evaluated > 0 else 100.0

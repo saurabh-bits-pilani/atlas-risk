@@ -1628,16 +1628,26 @@ def compute_executive_scorecard(
     from engines.domain_models import compute_webapp_posture_model, compute_repo_hygiene_model
     from engines.evidence_lineage import ExecutionTrial, OutcomeClassification, ClassificationMethod, DetectorProvenance
 
-    issues_cnt = len(findings)
-    safe_cnt = len(positive_obs)
-    n_evaluated = issues_cnt + safe_cnt
-    n_planned = max(total_tested if total_tested > 0 else n_evaluated, n_evaluated + unassessed_count)
-
     # 1. Build or use ExecutionTrials for pure metric & clustering evaluation
     trials: list = []
     if raw_trials:
         trials = raw_trials
+        n_defended = sum(1 for t in trials if t.is_defended())
+        n_breached = sum(1 for t in trials if t.is_breached())
+        n_unassessed = sum(1 for t in trials if t.is_unassessed())
+        n_evaluated = n_defended + n_breached
+        n_planned = max(total_tested if total_tested > 0 else n_evaluated, n_evaluated + n_unassessed)
+        issues_cnt = n_breached
+        safe_cnt = n_defended
     else:
+        issues_cnt = len(findings)
+        safe_cnt = len(positive_obs)
+        n_defended = safe_cnt
+        n_breached = issues_cnt
+        n_unassessed = unassessed_count
+        n_evaluated = issues_cnt + safe_cnt
+        n_planned = max(total_tested if total_tested > 0 else n_evaluated, n_evaluated + unassessed_count)
+
         for idx, f in enumerate(findings):
             # Check for canary or token leak
             ev_text = str(f.get("observed", "") or f.get("evidence", "") or f.get("title", ""))
@@ -1673,9 +1683,13 @@ def compute_executive_scorecard(
     ads = metric_summary.ads_defense_score
     asr = metric_summary.asr_attack_success_rate
     ac = metric_summary.ac_completeness
+    n_defended = metric_summary.d_defended
+    n_breached = metric_summary.b_breached
+    n_unassessed = metric_summary.u_unassessed
+    n_evaluated = metric_summary.n_evaluated
 
     # 3. Candidate Finding Clustering (Transforms raw breaches into deduplicated finding clusters)
-    candidate_clusters = cluster_trials_into_findings(trials)
+    candidate_clusters = cluster_trials_into_findings(trials, target_type=target_type)
 
     # 4. Policy Engine Evaluation (Decoupled Policy Gate)
     policy_eval = evaluate_deployment_policy(metric_summary, candidate_clusters)
@@ -1728,7 +1742,14 @@ def compute_executive_scorecard(
             score_label = repo_model.policy_model_name
             grade_str = "Grade A" if score_val >= 90 else ("Grade B" if score_val >= 80 else ("Grade C" if score_val >= 70 else ("Grade D" if score_val >= 55 else "Grade F")))
         elif target_type == "website":
-            web_model = compute_webapp_posture_model(findings, positive_obs, [1] * unassessed_count if unassessed_count else [], [1] * max(1, n_evaluated))
+            web_model = compute_webapp_posture_model(
+                findings,
+                positive_obs,
+                [1] * unassessed_count if unassessed_count else [],
+                [1] * max(1, n_evaluated),
+                evaluated_defended_count=n_defended,
+                evaluated_breached_count=n_breached
+            )
             score_val = int(round(web_model.asps_posture_score))
             score_label = web_model.score_label
             grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
@@ -1944,7 +1965,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
             if matching_issue:
                 outcome = OutcomeClassification.BREACHED
-                evidence_text = matching_issue.get("issue", "")
+                evidence_text = f"{matching_issue.get('issue', '')}: {matching_issue.get('evidence', '')}".strip(": ")
                 result_tag = "🔴 Issue Detected"
                 c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
             elif matching_unassessed:
@@ -1967,6 +1988,18 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         avg_time = elapsed_sec / executed_probes
         eta_sec = round(avg_time * (total_probes - executed_probes), 1)
 
+        prov = None
+        if matching_issue and is_live:
+            from engines.scoring_engine import DetectorProvenance
+            prov = DetectorProvenance(
+                detector_name="website_audit_evaluator",
+                detector_type="rule_based",
+                signature_id=f"WEB-{p.get('cat', 'SEC')}",
+                confidence=1.0,
+                matched_pattern=matching_issue.get("issue", "")[:80],
+                evidence_excerpt=matching_issue.get("evidence", "")[:150]
+            )
+
         trial = ExecutionTrial(
             execution_trial_id=f"ET-WEB-{idx+1:03d}",
             attack_case_id=f"AC-WEB-{idx+1:03d}",
@@ -1974,7 +2007,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             latency_ms=round(avg_time * 1000, 1),
             raw_response=evidence_text,
             outcome_classification=outcome,
-            unassessed_reason=unassessed_reason
+            unassessed_reason=unassessed_reason,
+            detector_provenance=prov
         )
         trials.append(trial)
 

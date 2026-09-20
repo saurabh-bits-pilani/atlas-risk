@@ -196,3 +196,112 @@ def test_domain_models_repository_hygiene_and_web():
     assert web_res.asps_posture_score == 66.7
     # 1 page / 3 total pages = 33.3% public coverage
     assert web_res.public_surface_coverage_pct == 33.3
+
+
+def test_web_score_reconciliation_exact_20_5_yields_80():
+    """
+    Validates that a web assessment with 20 defended checks and 5 breached checks
+    reconciles directly to ASPS = 80.0% (80/100, Grade B), without distortion.
+    """
+    web_res = compute_webapp_posture_model(
+        issues=[{"title": "Issue"}],
+        positives=["Positive"],
+        unassessed_pages=[],
+        pages_inspected=["/"],
+        evaluated_defended_count=20,
+        evaluated_breached_count=5
+    )
+    assert web_res.checks_passed == 20
+    assert web_res.checks_failed == 5
+    assert web_res.total_checks_evaluated == 25
+    assert web_res.asps_posture_score == 80.0
+
+    # Also test through compute_executive_scorecard
+    from guided_assessment_ui import compute_executive_scorecard
+    trials = []
+    for i in range(20):
+        trials.append(ExecutionTrial(
+            execution_trial_id=f"ET-WEB-DEF-{i+1:03d}",
+            attack_case_id=f"AC-WEB-DEF-{i+1:03d}",
+            probe_family_id="security_headers",
+            outcome_classification=OutcomeClassification.DEFENDED
+        ))
+    for i in range(5):
+        trials.append(ExecutionTrial(
+            execution_trial_id=f"ET-WEB-BRK-{i+1:03d}",
+            attack_case_id=f"AC-WEB-BRK-{i+1:03d}",
+            probe_family_id="security_headers",
+            raw_response="Missing Content-Security-Policy (CSP)",
+            outcome_classification=OutcomeClassification.BREACHED
+        ))
+
+    scorecard = compute_executive_scorecard(
+        findings=[],
+        positive_obs=[],
+        total_tested=25,
+        target_type="website",
+        raw_trials=trials,
+        unassessed_count=0
+    )
+    assert scorecard["overall_safety_score"] == 80
+    assert scorecard["safety_grade"] == "Grade B"
+    assert scorecard["score_label"] == "Application Security Posture Score (ASPS)"
+    assert scorecard["candidate_clusters"][0]["title"] == "Missing Content-Security-Policy (CSP) Header"
+    assert "OWASP Top 10 Web" in scorecard["candidate_clusters"][0]["owasp_mapping"]
+
+
+def test_web_finding_domain_isolation_no_llm_leakage():
+    """
+    Validates that web probe breaches produce web-specific finding titles,
+    OWASP Top 10 Web classifications, and reverse-proxy/server HTTP header remediations,
+    and NEVER leak LLM prompt injection or delimiter framing templates.
+    """
+    trials = [
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-001",
+            attack_case_id="AC-WEB-001",
+            probe_family_id="security_headers",
+            raw_response="Missing Content-Security-Policy (CSP): No CSP header detected on root response",
+            outcome_classification=OutcomeClassification.BREACHED
+        ),
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-002",
+            attack_case_id="AC-WEB-002",
+            probe_family_id="security_headers",
+            raw_response="Missing HTTP Strict Transport Security (HSTS): No Strict-Transport-Security header returned",
+            outcome_classification=OutcomeClassification.BREACHED
+        ),
+        ExecutionTrial(
+            execution_trial_id="ET-WEB-003",
+            attack_case_id="AC-WEB-003",
+            probe_family_id="perimeter_fuzzing",
+            raw_response="Exposed Environment Secrets (.env): 200 OK returned on /.env endpoint",
+            outcome_classification=OutcomeClassification.BREACHED
+        )
+    ]
+
+    clusters = cluster_trials_into_findings(trials, target_type="website")
+    assert len(clusters) >= 2
+
+    # Verify each cluster strictly adheres to Web taxonomy
+    for c in clusters:
+        # Must not contain LLM prompt injection templates
+        assert "delimiter" not in c.actionable_remediation.lower()
+        assert "guardrail" not in c.actionable_remediation.lower()
+        assert "prompt injection" not in c.title.lower()
+        assert "Adversarial Boundary Violation" not in c.title
+        assert "LLM01" not in c.owasp_mapping
+        assert "LLM02" not in c.owasp_mapping
+
+    # Specific finding check: CSP
+    csp_cluster = next(c for c in clusters if "Content-Security-Policy" in c.title)
+    assert csp_cluster.title == "Missing Content-Security-Policy (CSP) Header"
+    assert "OWASP Top 10 Web A05:2021" in csp_cluster.owasp_mapping
+    assert "web server / reverse proxy" in csp_cluster.actionable_remediation
+    assert "Content-Security-Policy" in csp_cluster.actionable_remediation
+
+    # Specific finding check: Exposed .env
+    env_cluster = next(c for c in clusters if ".env" in c.sample_evidence_excerpt or "Environment" in c.title)
+    assert "OWASP Top 10 Web A01:2021" in env_cluster.owasp_mapping
+    assert env_cluster.technical_severity == "CRITICAL"
+
