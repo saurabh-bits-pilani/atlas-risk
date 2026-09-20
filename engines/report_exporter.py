@@ -34,11 +34,13 @@ def sanitize(text: Any) -> str:
     return html.escape(str(text))
 
 
-def clean_pdf_text(text: Any) -> str:
-    """Escapes XML entities, strips non-printable/unsupported font emojis, and preserves linebreaks for ReportLab."""
+def clean_pdf_text(text: Any, max_len: int = 800) -> str:
+    """Escapes XML entities, strips non-printable/unsupported font emojis, bounds length, and preserves linebreaks for ReportLab."""
     if text is None:
         return ""
     s = str(text)
+    if len(s) > max_len:
+        s = s[:max_len] + " ... [truncated]"
     # Replace common status emojis with clean text representations
     s = s.replace('🟢', '').replace('🔹', '').replace('🌟', '').replace('⚡', '').replace('🛡️', '')
     s = s.replace('✅', '[PASS]').replace('❌', '[FAIL]').replace('⚠️', '[WARN]').replace('ℹ️', '')

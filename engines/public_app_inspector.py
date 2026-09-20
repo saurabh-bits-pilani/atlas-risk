@@ -37,10 +37,15 @@ class SimpleHTMLAnalyzer(HTMLParser):
         self._current_button_text = []
         self.pricing_signals: List[str] = []
         self.text_content: List[str] = []
+        self._in_script: bool = False
 
     def handle_starttag(self, tag, attrs):
         attr_dict = dict(attrs)
         tag_lower = tag.lower()
+
+        if tag_lower in ("script", "style", "noscript", "svg"):
+            self._in_script = True
+            return
 
         if tag_lower == "html":
             self.html_lang = attr_dict.get("lang")
@@ -73,34 +78,41 @@ class SimpleHTMLAnalyzer(HTMLParser):
 
     def handle_endtag(self, tag):
         tag_lower = tag.lower()
+        if tag_lower in ("script", "style", "noscript", "svg"):
+            self._in_script = False
+            return
+
         if tag_lower == "title":
             self._in_title = False
         elif tag_lower == "h1":
             self._in_h1 = False
             text = "".join(self._current_h1_text).strip()
             if text:
-                self.h1_tags.append(text)
+                self.h1_tags.append(text[:200])
         elif tag_lower == "button":
             self._in_button = False
             text = "".join(self._current_button_text).strip()
             if text:
-                self.buttons.append(text)
+                self.buttons.append(text[:100])
 
     def handle_data(self, data):
+        if self._in_script:
+            return
         clean_text = data.strip()
         if clean_text:
-            self.text_content.append(clean_text)
+            self.text_content.append(clean_text[:300])
             if self._in_title and self.title is None:
-                self.title = clean_text
+                self.title = clean_text[:200]
             elif self._in_h1:
-                self._current_h1_text.append(data)
+                self._current_h1_text.append(data[:200])
             elif self._in_button:
-                self._current_button_text.append(data)
+                self._current_button_text.append(data[:100])
 
-            # Detect pricing keywords in visible text
-            pricing_keywords = ["pricing", "free tier", "$", "month", "/mo", "/year", "pro plan", "enterprise plan"]
-            if any(k in clean_text.lower() for k in pricing_keywords):
-                self.pricing_signals.append(clean_text)
+            # Detect pricing keywords in visible text (strictly bounded)
+            if len(clean_text) <= 120:
+                pricing_keywords = ["pricing", "free tier", "$", "month", "/mo", "/year", "pro plan", "enterprise plan"]
+                if any(k in clean_text.lower() for k in pricing_keywords):
+                    self.pricing_signals.append(clean_text[:100])
 
 
 class PublicAppInspector:
