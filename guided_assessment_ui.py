@@ -1808,7 +1808,7 @@ def compute_executive_scorecard(
 def run_staged_website_audit(inp: dict, journey_container, status_container, stop_checker=None) -> dict:
     """Executes staged multi-category website audit driving the Live Visual Journey."""
     store = AssessmentStore()
-    raw_url = inp.get("url", DEFAULT_PUBLIC_URL).strip()
+    raw_url = (inp.get("url") or inp.get("target_url") or DEFAULT_PUBLIC_URL).strip()
     target_url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
     scan_profile = inp.get("scan_profile", "quick")
     profiles = get_audit_profiles_for_target("website")
@@ -2008,14 +2008,12 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
         prov = None
         if matching_issue and is_live:
-            from engines.scoring_engine import DetectorProvenance
+            from engines.evidence_lineage import DetectorProvenance
             prov = DetectorProvenance(
-                detector_name="website_audit_evaluator",
-                detector_type="rule_based",
-                signature_id=f"WEB-{p.get('cat', 'SEC')}",
-                confidence=1.0,
+                detector_id=f"WEB-{p.get('cat', 'SEC')}",
                 matched_pattern=matching_issue.get("issue", "")[:80],
-                evidence_excerpt=matching_issue.get("evidence", "")[:150]
+                evidence_excerpt=matching_issue.get("evidence", "")[:150],
+                confidence_score=1.0
             )
 
         trial = ExecutionTrial(
