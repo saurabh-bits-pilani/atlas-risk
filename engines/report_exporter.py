@@ -260,10 +260,10 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     unassessed_cnt = counts.get("unassessed_or_blocked", counts.get("not_completed", counts.get("unassessed", len(unassessed))))
     na_cnt = counts.get("not_applicable", 0)
 
-    m_cnt = record.get("unique_findings_count", issues_cnt)
-    b_cnt = record.get("breach_events_count", issues_cnt)
-    d_cnt = record.get("defended_events_count", clean_cnt)
-    u_cnt = record.get("unassessed_events_count", unassessed_cnt)
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", issues_cnt))
+    b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
+    d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
+    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
 
     # Derive Safety Score & Circuit Breaker if not directly on record
     score_label = record.get("score_label")
@@ -1076,10 +1076,10 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(Paragraph(f"<b>Executive Risk Determination:</b> {clean_pdf_text(verdict_explanation)}", ParagraphStyle('ExpStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=colors.HexColor('#1e293b'))))
     story.append(Spacer(1, 8))
 
-    m_cnt = record.get("unique_findings_count", issues_cnt)
-    b_cnt = record.get("breach_events_count", issues_cnt)
-    d_cnt = record.get("defended_events_count", clean_cnt)
-    u_cnt = record.get("unassessed_events_count", unassessed_cnt)
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", issues_cnt))
+    b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
+    d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
+    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
 
     metric_cells = [
         [

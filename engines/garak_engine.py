@@ -1161,9 +1161,12 @@ class GarakUnifiedEngine:
         return record
 
     def _dispatch_ollama(self, endpoint: str, model: str, prompt: str, system_prompt: str):
-        """Dispatches prompt to local Ollama Gateway."""
+        """Dispatches prompt to local Ollama (port 11434) or Ollama Gateway (port 8080)."""
         clean_ep = endpoint.rstrip("/")
-        url = f"{clean_ep}/"
+        if "11434" in clean_ep or clean_ep.endswith("/api/generate"):
+            url = clean_ep if clean_ep.endswith("/api/generate") else f"{clean_ep}/api/generate"
+        else:
+            url = f"{clean_ep}/"
         payload = json.dumps({
             "model": model,
             "prompt": prompt,
