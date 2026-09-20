@@ -705,6 +705,7 @@ def render_step_2(on_navigate=None):
     with col_left:
         if target_type == "website":
             st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Website address <span style='color: #ef4444;'>*</span></div>", unsafe_allow_html=True)
+            entered_url = st.text_input("Website address", value=inp.get("url", ""), placeholder="https://example.com", label_visibility="collapsed")
             raw_entered = entered_url.strip()
             url_match = re.search(r'https?://[^\s]+', raw_entered)
             inp["url"] = url_match.group(0).rstrip(".,;") if url_match else raw_entered
