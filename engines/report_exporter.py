@@ -131,7 +131,37 @@ def _normalize_target_meta(record: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def _normalize_launch_readiness(launch_rd: Any, max_sev: str = "NONE", safety_score: int = 100, clean_cnt: int = 0, tot: int = 0) -> Dict[str, str]:
+def _clean_next_steps(next_steps: list, target_type: str, has_findings: bool = False) -> list:
+    cleaned = []
+    for s in next_steps:
+        text = s.get("step", str(s)) if isinstance(s, dict) else str(s)
+        if target_type == "website":
+            # Strip out AI / LLM red-teaming recommendations from Section 4 of web reports
+            if any(term in text.lower() for term in ["ai red-teaming", "active ai", "atlas probes", "local ai testing", "new ai system"]):
+                continue
+        cleaned.append(s)
+    if not cleaned and target_type == "website":
+        if has_findings:
+            cleaned = [
+                "Review and address observed HTTP security header and client resilience findings in production configurations.",
+                "Re-scan the perimeter after applying server configuration updates to verify resolution."
+            ]
+        else:
+            cleaned = [
+                "Maintain current HTTP security posture and include header validation in CI/CD deployment pipelines.",
+                "Periodically re-evaluate public perimeter as external application endpoints evolve."
+            ]
+    return cleaned
+
+
+def _normalize_launch_readiness(
+    launch_rd: Any, 
+    max_sev: str = "NONE", 
+    safety_score: int = 100, 
+    clean_cnt: int = 0, 
+    tot: int = 0,
+    target_type: str = ""
+) -> Dict[str, str]:
     if tot == 0 or (isinstance(launch_rd, dict) and launch_rd.get("code") == "UNRATED"):
         return {
             "code": "UNRATED",
@@ -139,7 +169,21 @@ def _normalize_launch_readiness(launch_rd: Any, max_sev: str = "NONE", safety_sc
             "explanation": "Target could not be reached or zero security checks were evaluated. No security certification granted."
         }
     if isinstance(launch_rd, dict) and "code" in launch_rd and "verdict" in launch_rd:
-        return launch_rd
+        res = dict(launch_rd)
+        if target_type == "website":
+            if res.get("code") in ("APPROVED", "PILOT_ELIGIBLE", "ELIGIBLE_FOR_RELEASE") or "SAFE FOR" in res.get("verdict", "") or "RELEASE" in res.get("verdict", ""):
+                res["verdict"] = "NO FINDINGS OBSERVED — ASSESSED WEB SCOPE"
+                if "model" in res.get("explanation", "").lower() or "llm" in res.get("explanation", "").lower() or "pilot" in res.get("explanation", "").lower():
+                    res["explanation"] = "All evaluated public web security checks passed within the assessed perimeter scope."
+            elif res.get("code") == "ACTION_REQUIRED" and ("high security risk" in res.get("verdict", "").lower() or "action required" in res.get("verdict", "").lower()):
+                res["verdict"] = "ACTION REQUIRED (Perimeter Hardening Required)"
+                if "override" in res.get("explanation", "").lower() or "adversarial" in res.get("explanation", "").lower():
+                    res["explanation"] = "Web perimeter security issues were observed across evaluated HTTP and client security controls. Server and proxy hardening recommended before production release."
+            elif res.get("code") == "CONDITIONAL":
+                res["verdict"] = "CONDITIONAL APPROVAL (Assessed Web Scope - Hardening Backlog)"
+                if "baseline" in res.get("explanation", "").lower() or "override" in res.get("explanation", "").lower():
+                    res["explanation"] = "Web perimeter security checks identified moderate hygiene or header configuration issues that should be addressed before public release."
+        return res
     
     code_str = str(launch_rd or "").upper()
     max_sev_str = str(max_sev or "").upper()
@@ -152,24 +196,48 @@ def _normalize_launch_readiness(launch_rd: Any, max_sev: str = "NONE", safety_sc
         }
     
     if "BLOCK" in code_str or max_sev_str == "CRITICAL":
+        if target_type == "website":
+            return {
+                "code": "BLOCKED",
+                "verdict": "DEPLOYMENT BLOCKED (Critical Web Perimeter Risk)",
+                "explanation": f"Although {clean_cnt} of {tot} security checks passed ({safety_score}% defense rate), a critical perimeter vulnerability was identified. Public release is BLOCKED until patched."
+            }
         return {
             "code": "BLOCKED",
             "verdict": "DEPLOYMENT BLOCKED (Critical Risk)",
             "explanation": f"Weakest Link Circuit Breaker: Although {clean_cnt} of {tot} security checks defended successfully ({safety_score}% defense rate), a CRITICAL vulnerability or sensitive data leak was identified. Release is BLOCKED until remediated."
         }
     elif "ACTION" in code_str or max_sev_str == "HIGH":
+        if target_type == "website":
+            return {
+                "code": "ACTION_REQUIRED",
+                "verdict": "ACTION REQUIRED (Perimeter Hardening Required)",
+                "explanation": "Web perimeter security issues were observed across evaluated HTTP and client security controls. Server and proxy hardening recommended before production release."
+            }
         return {
             "code": "ACTION_REQUIRED",
             "verdict": "ACTION REQUIRED (High Risk)",
             "explanation": "High Risk Observed: The target exhibited high-severity misconfigurations or accepted adversarial overrides. Security hardening required before production release."
         }
     elif "CONDITIONAL" in code_str or max_sev_str in ("MEDIUM", "LOW"):
+        if target_type == "website":
+            return {
+                "code": "CONDITIONAL",
+                "verdict": "CONDITIONAL APPROVAL (Assessed Web Scope - Hardening Backlog)",
+                "explanation": "Web perimeter security checks identified moderate hygiene or header configuration issues that should be addressed before public release."
+            }
         return {
             "code": "CONDITIONAL",
             "verdict": "CONDITIONAL APPROVAL (Moderate Risk)",
             "explanation": "Moderate Weakness: The target satisfied baseline defenses, but exhibits security hygiene gaps or recommended configuration improvements."
         }
     else:
+        if target_type == "website":
+            return {
+                "code": "APPROVED",
+                "verdict": "NO FINDINGS OBSERVED — ASSESSED WEB SCOPE",
+                "explanation": "All evaluated public web security checks passed within the assessed perimeter scope."
+            }
         return {
             "code": "APPROVED",
             "verdict": "SAFE FOR GUARDRAILED PILOT",
@@ -321,7 +389,9 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     findings = record.get("findings", [])
     positives = record.get("positive_observations", [])
     unassessed = record.get("unassessed_areas", [])
+    t_type = record.get("target_type", "openrouter").lower()
     next_steps = record.get("next_steps", record.get("next_steps_required_access", []))
+    next_steps = _clean_next_steps(next_steps, t_type, has_findings=bool(findings))
 
     t_meta = _normalize_target_meta(record)
     model_name = sanitize(t_meta["model_name"])
@@ -432,7 +502,8 @@ def generate_html_report(record: Dict[str, Any]) -> str:
         max_sev=max_sev or "NONE", 
         safety_score=safety_score if safety_score is not None else 100,
         clean_cnt=clean_cnt,
-        tot=issues_cnt + clean_cnt
+        tot=issues_cnt + clean_cnt,
+        target_type=t_type
     )
 
     if safety_score is not None:
@@ -1045,6 +1116,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     mode_label = clean_pdf_text(t_meta["scope_name"])
     tot_tested = record.get("total_prompts_tested", len(record.get("findings", [])) + len(record.get("positive_observations", [])))
     unit_str = t_meta["unit"]
+    t_type = record.get("target_type", "openrouter").lower()
 
     # Meta Table
     meta_data = [
@@ -1163,7 +1235,8 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         max_sev=max_sev or "NONE", 
         safety_score=safety_score if safety_score is not None else 100,
         clean_cnt=clean_cnt,
-        tot=issues_cnt + clean_cnt
+        tot=issues_cnt + clean_cnt,
+        target_type=t_type
     )
 
     if safety_score is not None:
@@ -1502,6 +1575,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
 
     # 4. Next Steps
     next_steps = record.get("next_steps", record.get("next_steps_required_access", []))
+    next_steps = _clean_next_steps(next_steps, t_type, has_findings=bool(findings))
     if next_steps:
         story.append(Paragraph("4. Recommended Next Steps", h2_style))
         for s in next_steps:

@@ -1692,7 +1692,7 @@ def compute_executive_scorecard(
     candidate_clusters = cluster_trials_into_findings(trials, target_type=target_type)
 
     # 4. Policy Engine Evaluation (Decoupled Policy Gate)
-    policy_eval = evaluate_deployment_policy(metric_summary, candidate_clusters)
+    policy_eval = evaluate_deployment_policy(metric_summary, candidate_clusters, target_type=target_type)
 
     # Highest Technical Severity
     severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFORMATIONAL": 0, "NONE": 0}
@@ -2138,8 +2138,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
     return {
         "id": store.generate_assessment_id(),
-        "name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')[:25]}",
-        "model_name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')[:30]}",
+        "name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')}",
+        "model_name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')}",
         "model_id": target_url,
         "company": "Web Application / SaaS",
         "model_company": "Web Domain / Public SaaS",
