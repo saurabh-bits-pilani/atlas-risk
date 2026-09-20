@@ -260,7 +260,22 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     unassessed_cnt = counts.get("unassessed_or_blocked", counts.get("not_completed", counts.get("unassessed", len(unassessed))))
     na_cnt = counts.get("not_applicable", 0)
 
+    m_cnt = record.get("unique_findings_count", issues_cnt)
+    b_cnt = record.get("breach_events_count", issues_cnt)
+    d_cnt = record.get("defended_events_count", clean_cnt)
+    u_cnt = record.get("unassessed_events_count", unassessed_cnt)
+
     # Derive Safety Score & Circuit Breaker if not directly on record
+    score_label = record.get("score_label")
+    if not score_label:
+        t_type = record.get("target_type", "")
+        if t_type == "github":
+            score_label = "Repository Posture Score (RPSS-P)"
+        elif t_type == "website":
+            score_label = "Application Security Posture Score (ASPS)"
+        else:
+            score_label = "ATLAS Defense Score (ADS)"
+
     safety_score = record.get("overall_safety_score")
     safety_grade = record.get("safety_grade")
     max_sev = record.get("max_severity_found")
@@ -269,7 +284,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
 
     if safety_score is None:
         if status == "FAILED_CONNECTIVITY" or (issues_cnt + clean_cnt) == 0:
-            safety_score = 0
+            safety_score = None
             safety_grade = "UNRATED"
             max_sev = "NONE"
             circuit_breaker = False
@@ -319,7 +334,14 @@ def generate_html_report(record: Dict[str, Any]) -> str:
         tot=issues_cnt + clean_cnt
     )
 
-    score_color = "#16a34a" if safety_score >= 70 else "#dc2626"
+    if safety_score is not None:
+        score_display = f"{safety_score} / 100"
+        score_color = "#16a34a" if safety_score >= 70 else "#dc2626"
+    else:
+        score_display = "N/A"
+        score_color = "#64748b"
+        safety_grade = safety_grade or "UNRATED"
+
     sev_color = "#dc2626" if max_sev == "CRITICAL" else ("#ea580c" if max_sev == "HIGH" else ("#d97706" if max_sev == "MEDIUM" else "#16a34a"))
     verdict_color = "#991b1b" if launch_rd.get("code") == "BLOCKED" else ("#9a3412" if launch_rd.get("code") == "ACTION_REQUIRED" else ("#92400e" if launch_rd.get("code") == "CONDITIONAL" else "#166534"))
 
@@ -359,7 +381,51 @@ def generate_html_report(record: Dict[str, Any]) -> str:
         """
 
     findings_html = []
-    if not findings:
+    candidate_clusters = record.get("candidate_clusters", [])
+    if candidate_clusters:
+        for idx, c in enumerate(candidate_clusters, 1):
+            sev = sanitize(c.get("technical_severity", "MEDIUM")).upper()
+            sev_class = "sev-crit" if "CRIT" in sev else ("sev-high" if "HIGH" in sev else ("sev-med" if "MED" in sev else "sev-low"))
+            err_pct = float(c.get("exploitation_reproduction_rate", 0.0)) * 100.0
+            b_k = c.get("breach_count", 0)
+            t_k = c.get("evaluated_trials_count", 0)
+            conf_level = sanitize(c.get("evidence_confidence_level", "MEDIUM"))
+            ev_type = sanitize(c.get("evidence_type", "BEHAVIORAL_SIGNATURE"))
+            vec_cnt = c.get("independent_vector_count", 1)
+            atlas = sanitize(c.get("mitre_atlas_technique", "AML.T0051"))
+            owasp = sanitize(c.get("owasp_mapping", "LLM01"))
+            hyp = c.get("root_cause_hypothesis") or {}
+            hyp_mech = sanitize(hyp.get("mechanism", ""))
+            hyp_disc = sanitize(hyp.get("disclaimer", ""))
+
+            hyp_html = f"<p><strong>🔬 Root-Cause Hypothesis:</strong> {hyp_mech}<br/><span style='font-size: 7.5pt; color: #64748b;'><em>Note: {hyp_disc}</em></span></p>" if hyp_mech else ""
+
+            findings_html.append(f"""
+            <div class="finding-card {sev_class}">
+                <div class="finding-header">
+                    <span class="finding-num">#{idx}</span>
+                    <span class="finding-title">{sanitize(c.get('title', 'Candidate Weakness'))}</span>
+                    <span class="badge {sev_class}-badge">{sev}</span>
+                </div>
+                <div class="finding-body">
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; font-size: 8pt; background: #f8fafc; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                        <span><strong>Reproduction Rate (ERR):</strong> <code style="color: #dc2626; font-weight: 700;">{err_pct:.1f}%</code> ({b_k}/{t_k} trials)</span>
+                        <span><strong>Evidence Confidence:</strong> <span style="font-weight: 700;">{conf_level}</span> ({ev_type})</span>
+                        <span><strong>Attack Vectors:</strong> <strong>{vec_cnt}</strong></span>
+                        <span><strong>ATLAS:</strong> <code>{atlas}</code></span>
+                        <span><strong>OWASP:</strong> <code>{owasp}</code></span>
+                    </div>
+                    <p><strong>🎯 Target Asset & Impact:</strong> {sanitize(c.get('target_asset', 'N/A'))} &mdash; <em>{sanitize(c.get('intended_impact', 'N/A'))}</em></p>
+                    <p><strong>🔍 Observed Evidence Signature:</strong> <code>{sanitize(c.get('sample_evidence_excerpt', c.get('evidence_signature', '')))}</code></p>
+                    {hyp_html}
+                    <div class="finding-action">
+                        <strong>🛠️ Actionable Executive Remediation:</strong>
+                        <code>{sanitize(c.get('actionable_remediation', 'Apply security guardrails.'))}</code>
+                    </div>
+                </div>
+            </div>
+            """)
+    elif not findings:
         findings_html.append("<div class='empty-note'>No issues observed within the tested scope.</div>")
     else:
         for idx, f in enumerate(findings, 1):
@@ -401,6 +467,8 @@ def generate_html_report(record: Dict[str, Any]) -> str:
                 </div>
             </div>
             """)
+
+    findings_heading = "1. Candidate Finding Clusters (Weakness Analysis)" if candidate_clusters else "1. Observed Issues & Recommended Fixes"
 
     positives_html = []
     for p in positives:
@@ -634,8 +702,8 @@ def generate_html_report(record: Dict[str, Any]) -> str:
             <div style="font-size: 15pt; font-weight: 900; color: {verdict_color}; margin-top: 2px;">{sanitize(launch_rd.get('verdict', ''))}</div>
         </div>
         <div style="text-align: right; background: #f8fafc; padding: 6px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
-            <div style="font-size: 8pt; font-weight: 700; color: #64748b;">SAFETY SCORE</div>
-            <div style="font-size: 14pt; font-weight: 900; color: {score_color};">{safety_score} / 100 <span style="font-size: 9pt;">({safety_grade})</span></div>
+            <div style="font-size: 8pt; font-weight: 700; color: #64748b;">{score_label.upper()} &bull; SAFETY SCORE</div>
+            <div style="font-size: 14pt; font-weight: 900; color: {score_color};">{score_display} <span style="font-size: 9pt;">({safety_grade})</span></div>
             <div style="font-size: 7.5pt; color: {sev_color}; font-weight: 700;">Highest: {max_sev} {'(⚡ Circuit Breaker)' if circuit_breaker else ''}</div>
         </div>
     </div>
@@ -646,16 +714,17 @@ def generate_html_report(record: Dict[str, Any]) -> str:
 
 <div class="counts-grid">
     <div class="count-card">
-        <div class="count-val" style="color: #ef4444;">{issues_cnt}</div>
-        <div class="count-lbl">Issues Observed</div>
+        <div class="count-val" style="color: #ef4444;">{m_cnt}</div>
+        <div class="count-lbl">Unique Findings (M)</div>
+        <div style="font-size: 7.5pt; color: #94a3b8; margin-top: 2px;">({b_cnt} Breaches)</div>
     </div>
     <div class="count-card">
-        <div class="count-val" style="color: #10b981;">{clean_cnt}</div>
-        <div class="count-lbl">No Issues Observed</div>
+        <div class="count-val" style="color: #10b981;">{d_cnt}</div>
+        <div class="count-lbl">Defended Trials (D)</div>
     </div>
     <div class="count-card">
-        <div class="count-val" style="color: #f59e0b;">{unassessed_cnt}</div>
-        <div class="count-lbl">Unassessed / Blocked</div>
+        <div class="count-val" style="color: #f59e0b;">{u_cnt}</div>
+        <div class="count-lbl">Unassessed / Throttled (U)</div>
     </div>
     <div class="count-card">
         <div class="count-val" style="color: #64748b;">{na_cnt}</div>
@@ -669,7 +738,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
 
 {cat_table_html}
 
-<h2>1. Observed Issues & Recommended Fixes</h2>
+<h2>{findings_heading}</h2>
 {"".join(findings_html)}
 
 <h2>2. Verified Positive Observations</h2>
@@ -904,6 +973,16 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     na_cnt = counts.get("not_applicable", 0)
 
     # Derive Safety Score & Circuit Breaker if not directly on record
+    score_label = record.get("score_label")
+    if not score_label:
+        t_type = record.get("target_type", "")
+        if t_type == "github":
+            score_label = "Repository Posture Score (RPSS-P)"
+        elif t_type == "website":
+            score_label = "Application Security Posture Score (ASPS)"
+        else:
+            score_label = "ATLAS Defense Score (ADS)"
+
     safety_score = record.get("overall_safety_score")
     safety_grade = record.get("safety_grade")
     max_sev = record.get("max_severity_found")
@@ -912,7 +991,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
 
     if safety_score is None:
         if status == "FAILED_CONNECTIVITY" or (issues_cnt + clean_cnt) == 0:
-            safety_score = 0
+            safety_score = None
             safety_grade = "UNRATED"
             max_sev = "NONE"
             circuit_breaker = False
@@ -962,16 +1041,22 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         tot=issues_cnt + clean_cnt
     )
 
-    # Executive AI Risk Scorecard Box in PDF
-    score_color = "#16a34a" if safety_score >= 70 else "#dc2626"
+    if safety_score is not None:
+        score_display = f"{safety_score} / 100"
+        score_color = "#16a34a" if safety_score >= 70 else "#dc2626"
+    else:
+        score_display = "N/A"
+        score_color = "#64748b"
+        safety_grade = safety_grade or "UNRATED"
+
     sev_color = "#dc2626" if max_sev == "CRITICAL" else ("#ea580c" if max_sev == "HIGH" else ("#d97706" if max_sev == "MEDIUM" else "#16a34a"))
     verdict_color = "#991b1b" if launch_rd.get("code") == "BLOCKED" else ("#9a3412" if launch_rd.get("code") == "ACTION_REQUIRED" else ("#92400e" if launch_rd.get("code") == "CONDITIONAL" else "#166534"))
 
     scorecard_cells = [
         [
-            Paragraph(f"<font size=7 color='#64748b'><b>OVERALL SAFETY SCORE</b></font><br/><font size=15 color='{score_color}'><b>{safety_score} / 100</b></font><br/><font size=7.5 color='#64748b'><b>{safety_grade}</b></font>", ParagraphStyle('SC1', alignment=1)),
+            Paragraph(f"<font size=7 color='#64748b'><b>{clean_pdf_text(score_label.upper())}</b></font><br/><font size=15 color='{score_color}'><b>{score_display}</b></font><br/><font size=7.5 color='#64748b'><b>{safety_grade}</b></font>", ParagraphStyle('SC1', alignment=1)),
             Paragraph(f"<font size=7 color='#64748b'><b>HIGHEST SEVERITY FOUND</b></font><br/><font size=15 color='{sev_color}'><b>{max_sev}</b></font><br/><font size=7.5 color='#dc2626'><b>{'⚡ Circuit Breaker' if circuit_breaker else 'Observed'}</b></font>", ParagraphStyle('SC2', alignment=1)),
-            Paragraph(f"<font size=7 color='#64748b'><b>EXECUTIVE LAUNCH VERDICT</b></font><br/><font size=10 color='{verdict_color}'><b>{clean_pdf_text(launch_rd.get('verdict', ''))}</b></font><br/><font size=6.5 color='#475569'>Single weak-link evaluation</font>", ParagraphStyle('SC3', alignment=1))
+            Paragraph(f"<font size=7 color='#64748b'><b>EXECUTIVE LAUNCH VERDICT</b></font><br/><font size=10 color='{verdict_color}'><b>{clean_pdf_text(launch_rd.get('verdict', ''))}</b></font><br/><font size=6.5 color='#475569'>Coverage & severity evaluation</font>", ParagraphStyle('SC3', alignment=1))
         ]
     ]
     scorecard_table = Table(scorecard_cells, colWidths=[170, 170, 175])
@@ -991,11 +1076,16 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(Paragraph(f"<b>Executive Risk Determination:</b> {clean_pdf_text(verdict_explanation)}", ParagraphStyle('ExpStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=colors.HexColor('#1e293b'))))
     story.append(Spacer(1, 8))
 
+    m_cnt = record.get("unique_findings_count", issues_cnt)
+    b_cnt = record.get("breach_events_count", issues_cnt)
+    d_cnt = record.get("defended_events_count", clean_cnt)
+    u_cnt = record.get("unassessed_events_count", unassessed_cnt)
+
     metric_cells = [
         [
-            Paragraph(f"<font size=16 color='#dc2626'><b>{issues_cnt}</b></font><br/><font size=7.5 color='#64748b'>Issues Observed</font>", ParagraphStyle('M1', alignment=1)),
-            Paragraph(f"<font size=16 color='#16a34a'><b>{clean_cnt}</b></font><br/><font size=7.5 color='#64748b'>No Issue Observed</font>", ParagraphStyle('M2', alignment=1)),
-            Paragraph(f"<font size=16 color='#ea580c'><b>{unassessed_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unassessed / Blocked</font>", ParagraphStyle('M3', alignment=1)),
+            Paragraph(f"<font size=16 color='#dc2626'><b>{m_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unique Findings (M)</font><br/><font size=6 color='#94a3b8'>({b_cnt} Breaches)</font>", ParagraphStyle('M1', alignment=1)),
+            Paragraph(f"<font size=16 color='#16a34a'><b>{d_cnt}</b></font><br/><font size=7.5 color='#64748b'>Defended Trials (D)</font>", ParagraphStyle('M2', alignment=1)),
+            Paragraph(f"<font size=16 color='#ea580c'><b>{u_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unassessed / Throttled (U)</font>", ParagraphStyle('M3', alignment=1)),
             Paragraph(f"<font size=16 color='#64748b'><b>{na_cnt}</b></font><br/><font size=7.5 color='#64748b'>Not Applicable</font>", ParagraphStyle('M4', alignment=1))
         ]
     ]
@@ -1088,67 +1178,135 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         story.append(pos_table)
     story.append(Spacer(1, 10))
 
-    # 2. Issues Observed & Practical Fixes
-    story.append(Paragraph("2. Issues Observed & Practical Remediations", h2_style))
-    if not findings:
-        story.append(Paragraph("No security or quality defects were observed within the tested scope.", body_style))
-    else:
-        for idx, f in enumerate(findings, 1):
-            if not isinstance(f, dict):
-                f = {"title": str(f), "severity": "MEDIUM", "observed": str(f)}
-            sev = str(f.get("severity", "MEDIUM")).upper()
+    # 2. Issues Observed & Practical Fixes / Candidate Finding Clusters
+    candidate_clusters = record.get("candidate_clusters", [])
+    if candidate_clusters:
+        story.append(Paragraph("2. Candidate Finding Clusters (Weakness Analysis)", h2_style))
+        for idx, c in enumerate(candidate_clusters, 1):
+            sev = str(c.get("technical_severity", "MEDIUM")).upper()
             sev_color = "#dc2626" if "HIGH" in sev or "CRIT" in sev else ("#d97706" if "MED" in sev else "#2563eb")
+            err_pct = float(c.get("exploitation_reproduction_rate", 0.0)) * 100.0
+            b_k = c.get("breach_count", 0)
+            t_k = c.get("evaluated_trials_count", 0)
+            conf_level = c.get("evidence_confidence_level", "MEDIUM")
+            ev_type = c.get("evidence_type", "BEHAVIORAL_SIGNATURE")
+            vec_cnt = c.get("independent_vector_count", 1)
+            atlas = c.get("mitre_atlas_technique", "AML.T0051")
+            owasp = c.get("owasp_mapping", "LLM01")
 
-            f_header = Table(
+            c_header = Table(
                 [
                     [
-                        Paragraph(f"<b>#{idx} {clean_pdf_text(f.get('title', f.get('issue', 'Finding')))}</b>", finding_title_style),
+                        Paragraph(f"<b>#{idx} {clean_pdf_text(c.get('title', 'Candidate Weakness'))}</b>", finding_title_style),
                         Paragraph(f"<font color='{sev_color}'><b>{sev}</b></font>", sev_badge_style)
                     ]
                 ],
                 colWidths=[430, 75]
             )
-            f_header.setStyle(TableStyle([
+            c_header.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ]))
 
-            biz_impact = f.get("business_impact", f.get("why_it_matters", "Risk to business operations and system resilience."))
-            attack_scen = f.get("attack_scenario", t_meta["default_attack_scenario"])
-            compliance = f.get("compliance_impact", f.get("domain", t_meta["default_compliance"]))
-            remediation = f.get("action", f.get("fix", f.get("recommendation", "Review and apply security guardrails.")))
+            c_metrics_text = (
+                f"<b>Reproduction Rate (ERR):</b> <font color='#dc2626'><b>{err_pct:.1f}%</b></font> ({b_k}/{t_k} trials) | "
+                f"<b>Confidence:</b> <b>{conf_level}</b> ({ev_type}) | "
+                f"<b>Vectors:</b> <b>{vec_cnt}</b>"
+            )
+
+            hyp = c.get("root_cause_hypothesis") or {}
+            hyp_mech = hyp.get("mechanism", "")
+            hyp_disc = hyp.get("disclaimer", "")
 
             card_content = [
-                f_header,
-                Spacer(1, 4),
-                Paragraph("<b>Business Impact & Risk Analysis:</b> " + clean_pdf_text(biz_impact), body_style),
+                c_header,
                 Spacer(1, 3),
-                Paragraph("<b>Real-World Attack Scenario:</b> " + clean_pdf_text(attack_scen), body_style),
+                Paragraph(c_metrics_text, ParagraphStyle('CMetrics', parent=styles['Normal'], fontName='Helvetica', fontSize=7, leading=9, textColor=colors.HexColor('#334155'))),
                 Spacer(1, 3),
-                Paragraph("<b>Regulatory & Compliance Exposure:</b> <font color='#334155'><b>" + clean_pdf_text(compliance) + "</b></font>", body_style),
-                Spacer(1, 3),
-                Paragraph("<b>Observed Technical Evidence:</b> " + clean_pdf_text(f.get("observed", f.get("evidence", "N/A"))), evidence_style),
-                Spacer(1, 3),
-                Paragraph("<b>Actionable Executive Remediation:</b> " + clean_pdf_text(remediation), body_style),
+                Paragraph(f"<b>ATLAS / OWASP:</b> {clean_pdf_text(atlas)} | {clean_pdf_text(owasp)}", body_style),
+                Spacer(1, 2),
+                Paragraph(f"<b>Target Asset & Impact:</b> {clean_pdf_text(c.get('target_asset', ''))} &mdash; <i>{clean_pdf_text(c.get('intended_impact', ''))}</i>", body_style),
+                Spacer(1, 2),
+                Paragraph(f"<b>Observed Evidence:</b> {clean_pdf_text(c.get('sample_evidence_excerpt', c.get('evidence_signature', '')))}", evidence_style),
+                Spacer(1, 2),
             ]
+            if hyp_mech:
+                card_content.append(Paragraph(f"<b>Root-Cause Hypothesis:</b> {clean_pdf_text(hyp_mech)}<br/><font size=6 color='#64748b'><i>Note: {clean_pdf_text(hyp_disc)}</i></font>", body_style))
+                card_content.append(Spacer(1, 2))
 
-            code_fix = f.get("code_fix")
-            if code_fix:
-                card_content.append(Spacer(1, 3))
-                card_content.append(Paragraph("<b>Suggested Code / Configuration Fix:</b>", body_bold))
-                card_content.append(Paragraph(clean_pdf_text(code_fix), code_style))
+            card_content.append(Paragraph(f"<b>Actionable Remediation:</b> {clean_pdf_text(c.get('actionable_remediation', ''))}", body_style))
 
             box_table = Table([[card_content]], colWidths=[515])
             box_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, 0), colors.HexColor("#f8fafc")),
                 ('BOX', (0, 0), (0, 0), 0.75, colors.HexColor(sev_color)),
-                ('TOPPADDING', (0, 0), (0, 0), 6),
-                ('BOTTOMPADDING', (0, 0), (0, 0), 6),
+                ('TOPPADDING', (0, 0), (0, 0), 5),
+                ('BOTTOMPADDING', (0, 0), (0, 0), 5),
                 ('LEFTPADDING', (0, 0), (0, 0), 8),
                 ('RIGHTPADDING', (0, 0), (0, 0), 8),
             ]))
-
             story.append(KeepTogether([box_table, Spacer(1, 6)]))
+    else:
+        story.append(Paragraph("2. Issues Observed & Practical Remediations", h2_style))
+        if not findings:
+            story.append(Paragraph("No security or quality defects were observed within the tested scope.", body_style))
+        else:
+            for idx, f in enumerate(findings, 1):
+                if not isinstance(f, dict):
+                    f = {"title": str(f), "severity": "MEDIUM", "observed": str(f)}
+                sev = str(f.get("severity", "MEDIUM")).upper()
+                sev_color = "#dc2626" if "HIGH" in sev or "CRIT" in sev else ("#d97706" if "MED" in sev else "#2563eb")
+
+                f_header = Table(
+                    [
+                        [
+                            Paragraph(f"<b>#{idx} {clean_pdf_text(f.get('title', f.get('issue', 'Finding')))}</b>", finding_title_style),
+                            Paragraph(f"<font color='{sev_color}'><b>{sev}</b></font>", sev_badge_style)
+                        ]
+                    ],
+                    colWidths=[430, 75]
+                )
+                f_header.setStyle(TableStyle([
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ]))
+
+                biz_impact = f.get("business_impact", f.get("why_it_matters", "Risk to business operations and system resilience."))
+                attack_scen = f.get("attack_scenario", t_meta["default_attack_scenario"])
+                compliance = f.get("compliance_impact", f.get("domain", t_meta["default_compliance"]))
+                remediation = f.get("action", f.get("fix", f.get("recommendation", "Review and apply security guardrails.")))
+
+                card_content = [
+                    f_header,
+                    Spacer(1, 4),
+                    Paragraph("<b>Business Impact & Risk Analysis:</b> " + clean_pdf_text(biz_impact), body_style),
+                    Spacer(1, 3),
+                    Paragraph("<b>Real-World Attack Scenario:</b> " + clean_pdf_text(attack_scen), body_style),
+                    Spacer(1, 3),
+                    Paragraph("<b>Regulatory & Compliance Exposure:</b> <font color='#334155'><b>" + clean_pdf_text(compliance) + "</b></font>", body_style),
+                    Spacer(1, 3),
+                    Paragraph("<b>Observed Technical Evidence:</b> " + clean_pdf_text(f.get("observed", f.get("evidence", "N/A"))), evidence_style),
+                    Spacer(1, 3),
+                    Paragraph("<b>Actionable Executive Remediation:</b> " + clean_pdf_text(remediation), body_style),
+                ]
+
+                code_fix = f.get("code_fix")
+                if code_fix:
+                    card_content.append(Spacer(1, 3))
+                    card_content.append(Paragraph("<b>Suggested Code / Configuration Fix:</b>", body_bold))
+                    card_content.append(Paragraph(clean_pdf_text(code_fix), code_style))
+
+                box_table = Table([[card_content]], colWidths=[515])
+                box_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, 0), colors.HexColor("#f8fafc")),
+                    ('BOX', (0, 0), (0, 0), 0.75, colors.HexColor(sev_color)),
+                    ('TOPPADDING', (0, 0), (0, 0), 6),
+                    ('BOTTOMPADDING', (0, 0), (0, 0), 6),
+                    ('LEFTPADDING', (0, 0), (0, 0), 8),
+                    ('RIGHTPADDING', (0, 0), (0, 0), 8),
+                ]))
+
+                story.append(KeepTogether([box_table, Spacer(1, 6)]))
 
     story.append(Spacer(1, 8))
 

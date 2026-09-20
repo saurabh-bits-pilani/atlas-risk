@@ -169,22 +169,29 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                     "explanation": "Enterprise Ready: 0 vulnerabilities detected across all tested security boundaries."
                 }
 
-    # Top Metric Scorecard
+    # Formal Metrics Setup
+    target_type = record.get("target_type", "openrouter")
+    default_label = "ATLAS Defense Score (ADS)" if target_type in ("openrouter", "local_model", "chatbot") else ("Repository Posture Score (RPSS-P)" if target_type == "github" else "Application Security Posture Score (ASPS)")
+    score_label = record.get("score_label") or default_label
+    ac_val = record.get("assessment_completeness", 100.0)
+    uniq_findings_cnt = record.get("unique_findings_count", issues_cnt)
+    breach_events_cnt = record.get("breach_events_count", issues_cnt)
+
+    # Top Metric Scorecard (Formal Decoupled Metrics)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         if status == "FAILED_CONNECTIVITY":
-            st.metric("Safety Score", "UNRATED", delta="Pre-flight Halt", delta_color="off")
+            st.metric(score_label, "UNRATED", delta="Pre-flight Halt", delta_color="off")
         else:
-            st.metric("Safety Score", f"{safety_score} / 100", delta=safety_grade, delta_color="normal" if safety_score >= 70 else "inverse")
+            st.metric(score_label, f"{safety_score} / 100", delta=safety_grade, delta_color="normal" if safety_score >= 70 else "inverse")
     with c2:
-        sev_icon = "🔴" if max_sev == "CRITICAL" else ("🟠" if max_sev == "HIGH" else ("🟡" if max_sev == "MEDIUM" else "🟢"))
-        st.metric("Highest Severity", f"{sev_icon} {max_sev}", delta="Circuit Breaker" if circuit_breaker else ("None" if max_sev == "NONE" else "Observed"), delta_color="inverse" if circuit_breaker or max_sev in ("CRITICAL", "HIGH") else "normal")
+        st.metric("Attack Success Rate (ASR)", f"{asr}%", delta=f"{breach_events_cnt} Breaches", delta_color="inverse" if asr > 0 else "normal")
     with c3:
-        st.metric("Issues Observed", issues_cnt, delta="Action Recommended" if issues_cnt > 0 else "None", delta_color="inverse" if issues_cnt > 0 else "normal")
+        st.metric("Assessment Completeness (AC)", f"{ac_val}%", delta=f"{unassessed_cnt} Throttled/Unassessed" if unassessed_cnt > 0 else "100% Evaluated", delta_color="normal" if ac_val >= 80 else "inverse")
     with c4:
-        st.metric("Verified Defenses", safe_cnt, delta="Safeguard Held", delta_color="normal")
+        st.metric("Unique Findings (M)", uniq_findings_cnt, delta=f"{breach_events_cnt} Breach Events", delta_color="inverse" if uniq_findings_cnt > 0 else "normal")
     with c5:
-        st.metric("Attack Success Rate (ASR)", f"{asr}%", delta=f"{tested_probes} Probes Tested", delta_color="inverse" if asr > 0 else "normal")
+        st.metric("Verified Defenses (D)", safe_cnt, delta=f"{tested_probes} Trials Evaluated", delta_color="normal")
 
     # Executive Summary Box
     if status == "FAILED_CONNECTIVITY":
@@ -361,9 +368,37 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
             st.markdown(f"• {step}")
 
     with tab_findings:
-        st.markdown("### 🚨 Observed Vulnerabilities & Plain-English Fixes")
-        st.caption("Detailed walkthrough of failed security checks, what an attacker could achieve in practice, and step-by-step engineering fixes:")
-        if not findings:
+        st.markdown("### 🚨 Unique Security Findings & Candidate Root Causes")
+        st.caption("Deduplicated root weaknesses, empirical exploitation rates, and evidence confidence levels:")
+        st.info("💡 **Golden Principle:** *Finding count measures distinct weaknesses; exploitation count measures breadth of attackability.*")
+        
+        clusters = record.get("candidate_clusters")
+        if clusters:
+            for idx, c in enumerate(clusters, 1):
+                sev = c.get("technical_severity", "MEDIUM").upper()
+                sev_icon = "🔴" if "CRIT" in sev else ("🟠" if "HIGH" in sev else ("🟡" if "MED" in sev else "🔵"))
+                sev_tag = f"🔴 {sev}" if "CRIT" in sev else (f"🟠 {sev}" if "HIGH" in sev else f"🟡 {sev}")
+                err = c.get("exploitation_reproduction_rate", 1.0) * 100
+                b_cnt = c.get("breach_count", 1)
+                t_cnt = c.get("evaluated_trials_count", b_cnt)
+                conf = c.get("evidence_confidence_level", "HIGH")
+                with st.expander(f"{sev_icon} Finding #{idx}: {c.get('title')} — [{sev_tag}]", expanded=True):
+                    f_col1, f_col2, f_col3 = st.columns(3)
+                    with f_col1:
+                        st.metric("Exploitation Rate (ERR)", f"{err:.1f}%", f"{b_cnt}/{t_cnt} Trials Breached")
+                    with f_col2:
+                        st.metric("Evidence Confidence", conf)
+                    with f_col3:
+                        st.metric("Independent Vectors", c.get("independent_vector_count", 1))
+
+                    st.markdown(f"**Target Asset:** `{c.get('target_asset')}` | **Technique:** `{c.get('mitre_atlas_technique')}` ({c.get('owasp_mapping')})")
+                    rch = c.get("root_cause_hypothesis")
+                    if rch:
+                        st.markdown(f"**🔬 Root-Cause Hypothesis:** *{rch.get('statement', '')}*")
+                    st.markdown(f"**🔍 Observed Technical Evidence:**\n`{c.get('sample_evidence_excerpt', '')}`")
+                    st.markdown("**🛠️ Actionable Remediation for Engineering:**")
+                    st.info(c.get("actionable_remediation", "Apply defense-in-depth and input/output filtering."))
+        elif not findings:
             st.success("🎉 Zero issues observed within the tested scope! All tested security boundaries held firm.")
         else:
             for idx, f in enumerate(findings, 1):
