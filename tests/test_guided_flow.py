@@ -176,6 +176,38 @@ class TestGuidedFlow(unittest.TestCase):
         self.assertIn("launch_readiness", q_rec)
         self.assertIn("circuit_breaker_triggered", q_rec)
 
+    def test_staged_website_audit_unreachable_and_messy_input(self):
+        """Verify URL sanitization and ensure unreachable target does NOT raise UnboundLocalError."""
+        from unittest.mock import patch, MagicMock
+        from guided_assessment_ui import run_staged_website_audit
+
+        dummy_journey = MagicMock()
+        dummy_status = MagicMock()
+
+        # Mock inspect_url returning empty pages (unreachable host)
+        mock_raw_res = {
+            "pages_inspected": [],
+            "issues_observed": [],
+            "positive_observations": [],
+            "unassessed_areas": [{"area": "Network Connection", "reason": "Connection failed"}]
+        }
+
+        with patch("guided_assessment_ui.PublicAppInspector.inspect_url", return_value=mock_raw_res):
+            rec = run_staged_website_audit(
+                inp={"url": "Try this as well - https://couriernova-iq.up.railway.app/login", "scan_profile": "quick"},
+                journey_container=dummy_journey,
+                status_container=dummy_status
+            )
+
+        # 1. URL was cleanly extracted
+        self.assertEqual(rec["target_input"], "https://couriernova-iq.up.railway.app/login")
+        # 2. Checks correctly classified as UNASSESSED with zero UnboundLocalError
+        self.assertEqual(rec["counts"]["issues"], 0)
+        self.assertEqual(rec["counts"]["no_issue"], 0)
+        self.assertEqual(rec["counts"]["not_completed"], rec["total_prompts_planned"])
+        self.assertIsNone(rec["overall_safety_score"])
+        self.assertEqual(rec["safety_grade"], "UNRATED")
+
 
 if __name__ == "__main__":
     unittest.main()

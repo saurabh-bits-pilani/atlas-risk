@@ -14,6 +14,7 @@ import json
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
+import re
 
 from engines.public_app_inspector import PublicAppInspector
 from engines.assessment_store import AssessmentStore
@@ -704,8 +705,9 @@ def render_step_2(on_navigate=None):
     with col_left:
         if target_type == "website":
             st.markdown("<div style='font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;'>Website address <span style='color: #ef4444;'>*</span></div>", unsafe_allow_html=True)
-            entered_url = st.text_input("Website address", value=inp.get("url", ""), placeholder="https://example.com", label_visibility="collapsed")
-            inp["url"] = entered_url.strip()
+            raw_entered = entered_url.strip()
+            url_match = re.search(r'https?://[^\s]+', raw_entered)
+            inp["url"] = url_match.group(0).rstrip(".,;") if url_match else raw_entered
             st.caption("Enter the public web address you want us to review.")
 
             st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
@@ -1809,7 +1811,11 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     """Executes staged multi-category website audit driving the Live Visual Journey."""
     store = AssessmentStore()
     raw_url = (inp.get("url") or inp.get("target_url") or DEFAULT_PUBLIC_URL).strip()
-    target_url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
+    url_match = re.search(r'https?://[^\s]+', raw_url)
+    if url_match:
+        target_url = url_match.group(0).rstrip(".,;")
+    else:
+        target_url = raw_url if raw_url.startswith(("http://", "https://")) else f"https://{raw_url}"
     scan_profile = inp.get("scan_profile", "quick")
     profiles = get_audit_profiles_for_target("website")
     prof_info = profiles.get(scan_profile, profiles["quick"])
@@ -1970,6 +1976,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         outcome = None
         unassessed_reason = None
         evidence_text = ""
+        matching_issue = None
+        matching_unassessed = None
 
         if not is_live:
             outcome = OutcomeClassification.UNASSESSED
