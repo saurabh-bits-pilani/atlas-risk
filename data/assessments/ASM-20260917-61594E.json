@@ -1,0 +1,256 @@
+{
+  "id": "ASM-20260917-61594E",
+  "name": "Web Review: example.com",
+  "target_type": "website",
+  "target_input": "https://example.com",
+  "created_at": "2026-09-17T21:13:08.748322+00:00",
+  "status": "COMPLETE",
+  "summary": "Bounded review inspected 1 accessible page(s). Identified 4 issue(s) with practical fixes. 0 section(s) were protected and could not be assessed without credentials.",
+  "counts": {
+    "issues": 4,
+    "no_issue": 4,
+    "not_completed": 0,
+    "not_applicable": 1
+  },
+  "findings": [
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing `X-Content-Type-Options` header",
+      "observed": "Response header `X-Content-Type-Options` was not returned.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "Response header `X-Content-Type-Options` was not returned.",
+      "action": "Add `X-Content-Type-Options: nosniff` header in your hosting configuration to prevent MIME-sniffing attacks.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    },
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing `X-Frame-Options` header",
+      "observed": "Response header `X-Frame-Options` was not returned.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "Response header `X-Frame-Options` was not returned.",
+      "action": "Add `X-Frame-Options: DENY` or `SAMEORIGIN` to defend against UI clickjacking.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    },
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing `Referrer-Policy` header",
+      "observed": "Response header `Referrer-Policy` was not returned.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "Response header `Referrer-Policy` was not returned.",
+      "action": "Set `Referrer-Policy: strict-origin-when-cross-origin` to avoid leaking sensitive URLs in outgoing requests.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    },
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing Content-Security-Policy (CSP)",
+      "observed": "No `Content-Security-Policy` header found on the root HTML response.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+      "action": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    }
+  ],
+  "positive_observations": [
+    {
+      "area": "Usability",
+      "observation": "Page has a clear, descriptive browser title.",
+      "evidence": "Title: `Example Domain`"
+    },
+    {
+      "area": "Accessibility",
+      "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+      "evidence": "lang=\"en\""
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (275.9ms) on `https://example.com`.",
+      "evidence": "TTFB: 274.1ms, Payload: 559 B"
+    },
+    {
+      "area": "Security / Privacy",
+      "observation": "Enforces HTTPS transport encryption.",
+      "evidence": "Target scheme: https"
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "Internal Backend Architecture & Database Security",
+      "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+      "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+    },
+    {
+      "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+      "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+      "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+    }
+  ],
+  "next_steps": [
+    "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+  ],
+  "raw_telemetry": {
+    "target_url": "https://example.com",
+    "origin": "https://example.com",
+    "inspected_at": "2026-09-17T21:13:07.787774+00:00",
+    "pages_inspected": [
+      {
+        "url": "https://example.com",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 274.1,
+        "total_latency_ms": 275.9,
+        "content_length_bytes": 559,
+        "headers": {
+          "Date": "Thu, 17 Sep 2026 21:13:08 GMT",
+          "Content-Type": "text/html",
+          "Transfer-Encoding": "chunked",
+          "Connection": "close",
+          "Server": "cloudflare",
+          "last-modified": "Tue, 15 Sep 2026 23:38:37 GMT",
+          "allow": "GET, HEAD",
+          "Accept-Ranges": "bytes",
+          "Age": "7177",
+          "cf-cache-status": "HIT",
+          "CF-RAY": "a3cb1cf15cd05a14-DEL"
+        },
+        "discovered_links": [],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "Example Domain",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "Example Domain"
+          ],
+          "images_count": 0,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 0,
+          "pricing_signals": []
+        }
+      }
+    ],
+    "unassessed_areas": [],
+    "categories": {
+      "usability": {
+        "passed": [],
+        "issues": []
+      },
+      "accessibility": {
+        "passed": [],
+        "issues": []
+      },
+      "performance": {
+        "measurements": [],
+        "issues": []
+      },
+      "security_privacy": {
+        "passed": [],
+        "issues": []
+      },
+      "pricing": {
+        "status": "NOT_ASSESSED",
+        "evidence": []
+      }
+    },
+    "what_we_verified": [
+      {
+        "domain": "Usability",
+        "item": "Document Title",
+        "evidence": "Found `<title>Example Domain</title>` on https://example.com",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "HTML Language Declaration",
+        "evidence": "`<html lang=\"en\">` defined",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "Mobile Viewport Meta Tag",
+        "evidence": "`<meta name=\"viewport\" ...>` configured",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (https://example.com)",
+        "evidence": "TTFB: 274.1ms | Total Load: 275.9ms | Payload: 559 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Published Pricing",
+        "item": "Pricing Transparency",
+        "evidence": "Not assessed \u2014 no public pricing table or tier keywords detected on crawled pages.",
+        "status": "NOT_ASSESSED"
+      }
+    ],
+    "positive_observations": [
+      {
+        "area": "Usability",
+        "observation": "Page has a clear, descriptive browser title.",
+        "evidence": "Title: `Example Domain`"
+      },
+      {
+        "area": "Accessibility",
+        "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+        "evidence": "lang=\"en\""
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (275.9ms) on `https://example.com`.",
+        "evidence": "TTFB: 274.1ms, Payload: 559 B"
+      },
+      {
+        "area": "Security / Privacy",
+        "observation": "Enforces HTTPS transport encryption.",
+        "evidence": "Target scheme: https"
+      }
+    ],
+    "issues_observed": [
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing `X-Content-Type-Options` header",
+        "evidence": "Response header `X-Content-Type-Options` was not returned.",
+        "fix": "Add `X-Content-Type-Options: nosniff` header in your hosting configuration to prevent MIME-sniffing attacks."
+      },
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing `X-Frame-Options` header",
+        "evidence": "Response header `X-Frame-Options` was not returned.",
+        "fix": "Add `X-Frame-Options: DENY` or `SAMEORIGIN` to defend against UI clickjacking."
+      },
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing `Referrer-Policy` header",
+        "evidence": "Response header `Referrer-Policy` was not returned.",
+        "fix": "Set `Referrer-Policy: strict-origin-when-cross-origin` to avoid leaking sensitive URLs in outgoing requests."
+      },
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing Content-Security-Policy (CSP)",
+        "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+        "fix": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`."
+      }
+    ],
+    "what_could_not_be_assessed": [
+      {
+        "area": "Internal Backend Architecture & Database Security",
+        "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+        "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+      },
+      {
+        "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+        "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+        "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+      }
+    ],
+    "next_steps_required_access": [
+      "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+    ]
+  }
+}

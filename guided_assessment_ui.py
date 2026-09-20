@@ -1778,15 +1778,20 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     for iss in raw_issues:
         dom = iss.get("domain", "General")
         sev = "HIGH" if any(k in iss.get("issue", "").lower() for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
+        fix_text = iss.get("fix", "Configure recommended HTTP security response headers on web server or reverse proxy.")
         findings.append({
             "domain": dom,
             "severity": sev,
             "title": iss.get("issue", "Security or Usability Issue"),
             "observed": iss.get("evidence", ""),
-            "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+            "why_it_matters": "Affects user accessibility, browser privacy, perimeter defense, or UI resilience.",
             "evidence": iss.get("evidence", ""),
-            "action": iss.get("fix", ""),
-            "how_to_verify": "Apply recommended configuration fix and re-run audit."
+            "action": fix_text,
+            "how_to_verify": "Apply recommended configuration fix and re-run audit.",
+            "business_impact": "Exposes web assets to framing/clickjacking, SSL downgrade, or credential exposure.",
+            "attack_scenario": f"An attacker targets {target_url} via cross-origin eavesdropping, iframe encapsulation, or path fuzzing.",
+            "code_fix": fix_text,
+            "compliance": "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
         })
 
     positive_obs = list(raw_positives)
@@ -1911,6 +1916,11 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     return {
         "id": store.generate_assessment_id(),
         "name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')[:25]}",
+        "model_name": f"Web Review: {target_url.replace('http://', '').replace('https://', '')[:30]}",
+        "model_id": target_url,
+        "company": "Web Application / SaaS",
+        "model_company": "Web Domain / Public SaaS",
+        "model_tier": prof_info["report_tier"],
         "target_type": "website",
         "target_input": target_url,
         "scan_profile": scan_profile,
@@ -2159,6 +2169,11 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
     return {
         "id": base_rec.get("id") or store.generate_assessment_id(),
         "name": f"GitHub Review: {owner}/{repo_name}",
+        "model_name": f"GitHub Repo: {owner}/{repo_name}",
+        "model_id": f"{owner}/{repo_name}:{branch}",
+        "company": f"GitHub ({owner})",
+        "model_company": "GitHub Source Repository",
+        "model_tier": prof_info["report_tier"],
         "target_type": "github",
         "target_input": clean_url,
         "scan_profile": scan_profile,
@@ -2400,6 +2415,11 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
     return {
         "id": base_rec.get("id") or store.generate_assessment_id(),
         "name": f"Architecture Audit: {app_name}",
+        "model_name": f"Architecture: {app_name}",
+        "model_id": app_name,
+        "company": "Enterprise AI Architecture",
+        "model_company": "Internal Architecture Review",
+        "model_tier": prof_info["report_tier"],
         "target_type": "questionnaire",
         "target_input": base_rec.get("target_input", app_name),
         "scan_profile": scan_profile,

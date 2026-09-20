@@ -1,0 +1,386 @@
+{
+  "id": "ASM-20260918-308512",
+  "name": "Web Review: 127.0.0.1:8088/public_app",
+  "target_type": "website",
+  "target_input": "http://127.0.0.1:8088/public_app",
+  "created_at": "2026-09-18T12:02:35.247899+00:00",
+  "status": "COMPLETE",
+  "summary": "Bounded review inspected 3 accessible page(s). Identified 1 issue(s) with practical fixes. 0 section(s) were protected and could not be assessed without credentials.",
+  "counts": {
+    "issues": 1,
+    "no_issue": 11,
+    "not_completed": 0,
+    "not_applicable": 1
+  },
+  "findings": [
+    {
+      "domain": "Security / Privacy",
+      "severity": "MEDIUM",
+      "title": "Missing Content-Security-Policy (CSP)",
+      "observed": "No `Content-Security-Policy` header found on the root HTML response.",
+      "why_it_matters": "Affects user accessibility, browser privacy, or UI resilience.",
+      "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+      "action": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`.",
+      "how_to_verify": "Apply code fix and re-run assessment."
+    }
+  ],
+  "positive_observations": [
+    {
+      "area": "Usability",
+      "observation": "Page has a clear, descriptive browser title.",
+      "evidence": "Title: `VibeFlow AI - Effortless Workflow Automation`"
+    },
+    {
+      "area": "Usability",
+      "observation": "Interactive entry points and forms are present and discoverable.",
+      "evidence": "1 buttons, 0 forms"
+    },
+    {
+      "area": "Accessibility",
+      "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+      "evidence": "lang=\"en\""
+    },
+    {
+      "area": "Accessibility",
+      "observation": "All discovered images include non-empty `alt` attributes.",
+      "evidence": "Verified 1 image(s) with valid alt text."
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (5.6ms) on `http://127.0.0.1:8088/public_app`.",
+      "evidence": "TTFB: 5.5ms, Payload: 624 B"
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (1.6ms) on `http://127.0.0.1:8088/public_app/pricing`.",
+      "evidence": "TTFB: 1.6ms, Payload: 501 B"
+    },
+    {
+      "area": "Performance",
+      "observation": "Fast initial response latency (0.9ms) on `http://127.0.0.1:8088/public_app/features`.",
+      "evidence": "TTFB: 0.9ms, Payload: 405 B"
+    },
+    {
+      "area": "Security / Privacy",
+      "observation": "Security header `X-Content-Type-Options` is actively configured.",
+      "evidence": "`nosniff`"
+    },
+    {
+      "area": "Security / Privacy",
+      "observation": "Security header `X-Frame-Options` is actively configured.",
+      "evidence": "`SAMEORIGIN`"
+    },
+    {
+      "area": "Security / Privacy",
+      "observation": "Security header `Referrer-Policy` is actively configured.",
+      "evidence": "`strict-origin-when-cross-origin`"
+    },
+    {
+      "area": "Published Pricing",
+      "observation": "Public pricing structure is clearly published on the accessible site.",
+      "evidence": "Detected: View Pricing ($19/mo)"
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "Internal Backend Architecture & Database Security",
+      "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+      "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+    },
+    {
+      "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+      "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+      "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+    }
+  ],
+  "next_steps": [
+    "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+  ],
+  "raw_telemetry": {
+    "target_url": "http://127.0.0.1:8088/public_app",
+    "origin": "http://127.0.0.1:8088",
+    "inspected_at": "2026-09-18T12:02:34.730685+00:00",
+    "pages_inspected": [
+      {
+        "url": "http://127.0.0.1:8088/public_app",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 5.5,
+        "total_latency_ms": 5.6,
+        "content_length_bytes": 624,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Fri, 18 Sep 2026 12:02:34 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Referrer-Policy": "strict-origin-when-cross-origin"
+        },
+        "discovered_links": [
+          "http://127.0.0.1:8088/public_app/pricing",
+          "http://127.0.0.1:8088/public_app/features"
+        ],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "VibeFlow AI - Effortless Workflow Automation",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "Welcome to VibeFlow AI"
+          ],
+          "images_count": 1,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 1,
+          "pricing_signals": [
+            "View Pricing ($19/mo)"
+          ]
+        }
+      },
+      {
+        "url": "http://127.0.0.1:8088/public_app/pricing",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 1.6,
+        "total_latency_ms": 1.6,
+        "content_length_bytes": 501,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Fri, 18 Sep 2026 12:02:34 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "SAMEORIGIN"
+        },
+        "discovered_links": [
+          "http://127.0.0.1:8088/public_app"
+        ],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "Pricing Plans - VibeFlow AI",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "Simple, Transparent Pricing"
+          ],
+          "images_count": 0,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 0,
+          "pricing_signals": [
+            "Pricing Plans - VibeFlow AI",
+            "Simple, Transparent Pricing",
+            "Starter Plan: Free tier",
+            "Pro Plan: $19 / month",
+            "Enterprise Plan: Custom billing"
+          ]
+        }
+      },
+      {
+        "url": "http://127.0.0.1:8088/public_app/features",
+        "is_accessible": true,
+        "http_status": 200,
+        "ttfb_ms": 0.9,
+        "total_latency_ms": 0.9,
+        "content_length_bytes": 405,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.11.7",
+          "Date": "Fri, 18 Sep 2026 12:02:34 GMT",
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "discovered_links": [
+          "http://127.0.0.1:8088/public_app"
+        ],
+        "auth_required": false,
+        "unassessed_reason": null,
+        "parsed": {
+          "title": "Features - VibeFlow AI",
+          "html_lang": "en",
+          "has_meta_viewport": true,
+          "h1_tags": [
+            "Features & Integrations"
+          ],
+          "images_count": 0,
+          "images_missing_alt": [],
+          "forms_count": 0,
+          "buttons_count": 0,
+          "pricing_signals": []
+        }
+      }
+    ],
+    "unassessed_areas": [],
+    "categories": {
+      "usability": {
+        "passed": [],
+        "issues": []
+      },
+      "accessibility": {
+        "passed": [],
+        "issues": []
+      },
+      "performance": {
+        "measurements": [],
+        "issues": []
+      },
+      "security_privacy": {
+        "passed": [],
+        "issues": []
+      },
+      "pricing": {
+        "status": "DETECTED",
+        "evidence": [
+          "View Pricing ($19/mo)"
+        ]
+      }
+    },
+    "what_we_verified": [
+      {
+        "domain": "Usability",
+        "item": "Document Title",
+        "evidence": "Found `<title>VibeFlow AI - Effortless Workflow Automation</title>` on http://127.0.0.1:8088/public_app",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Usability",
+        "item": "Interactive UI Elements",
+        "evidence": "Detected 1 interactive button(s) and 0 form(s)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "HTML Language Declaration",
+        "evidence": "`<html lang=\"en\">` defined",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Accessibility",
+        "item": "Mobile Viewport Meta Tag",
+        "evidence": "`<meta name=\"viewport\" ...>` configured",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (http://127.0.0.1:8088/public_app)",
+        "evidence": "TTFB: 5.5ms | Total Load: 5.6ms | Payload: 624 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (http://127.0.0.1:8088/public_app/pricing)",
+        "evidence": "TTFB: 1.6ms | Total Load: 1.6ms | Payload: 501 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Performance",
+        "item": "Latency Check (http://127.0.0.1:8088/public_app/features)",
+        "evidence": "TTFB: 0.9ms | Total Load: 0.9ms | Payload: 405 bytes (Direct HTTP GET over local network)",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Security / Privacy",
+        "item": "Header: X-Content-Type-Options",
+        "evidence": "`X-Content-Type-Options: nosniff`",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Security / Privacy",
+        "item": "Header: X-Frame-Options",
+        "evidence": "`X-Frame-Options: SAMEORIGIN`",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Security / Privacy",
+        "item": "Header: Referrer-Policy",
+        "evidence": "`Referrer-Policy: strict-origin-when-cross-origin`",
+        "status": "VERIFIED"
+      },
+      {
+        "domain": "Published Pricing",
+        "item": "Pricing Information",
+        "evidence": "Found pricing indicators: View Pricing ($19/mo)",
+        "status": "VERIFIED"
+      }
+    ],
+    "positive_observations": [
+      {
+        "area": "Usability",
+        "observation": "Page has a clear, descriptive browser title.",
+        "evidence": "Title: `VibeFlow AI - Effortless Workflow Automation`"
+      },
+      {
+        "area": "Usability",
+        "observation": "Interactive entry points and forms are present and discoverable.",
+        "evidence": "1 buttons, 0 forms"
+      },
+      {
+        "area": "Accessibility",
+        "observation": "HTML language attribute is declared, aiding screen readers and search crawlers.",
+        "evidence": "lang=\"en\""
+      },
+      {
+        "area": "Accessibility",
+        "observation": "All discovered images include non-empty `alt` attributes.",
+        "evidence": "Verified 1 image(s) with valid alt text."
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (5.6ms) on `http://127.0.0.1:8088/public_app`.",
+        "evidence": "TTFB: 5.5ms, Payload: 624 B"
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (1.6ms) on `http://127.0.0.1:8088/public_app/pricing`.",
+        "evidence": "TTFB: 1.6ms, Payload: 501 B"
+      },
+      {
+        "area": "Performance",
+        "observation": "Fast initial response latency (0.9ms) on `http://127.0.0.1:8088/public_app/features`.",
+        "evidence": "TTFB: 0.9ms, Payload: 405 B"
+      },
+      {
+        "area": "Security / Privacy",
+        "observation": "Security header `X-Content-Type-Options` is actively configured.",
+        "evidence": "`nosniff`"
+      },
+      {
+        "area": "Security / Privacy",
+        "observation": "Security header `X-Frame-Options` is actively configured.",
+        "evidence": "`SAMEORIGIN`"
+      },
+      {
+        "area": "Security / Privacy",
+        "observation": "Security header `Referrer-Policy` is actively configured.",
+        "evidence": "`strict-origin-when-cross-origin`"
+      },
+      {
+        "area": "Published Pricing",
+        "observation": "Public pricing structure is clearly published on the accessible site.",
+        "evidence": "Detected: View Pricing ($19/mo)"
+      }
+    ],
+    "issues_observed": [
+      {
+        "domain": "Security / Privacy",
+        "issue": "Missing Content-Security-Policy (CSP)",
+        "evidence": "No `Content-Security-Policy` header found on the root HTML response.",
+        "fix": "Define a CSP header restricting script and object sources: `Content-Security-Policy: default-src 'self'; script-src 'self';`."
+      }
+    ],
+    "what_could_not_be_assessed": [
+      {
+        "area": "Internal Backend Architecture & Database Security",
+        "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+        "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+      },
+      {
+        "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+        "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+        "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
+      }
+    ],
+    "next_steps_required_access": [
+      "For active AI red-teaming: Navigate to 'Local AI Testing' or 'New AI System Assessment', grant explicit scope authorization, and connect your model endpoint."
+    ]
+  }
+}

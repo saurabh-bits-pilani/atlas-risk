@@ -256,7 +256,75 @@ def render_audit_results_view(res: dict):
             mime="application/json"
         )
     with col_e3:
-        st.caption("📕 PDF report can be generated from the exported markdown using the ATLAS PDF engine.")
+        try:
+            from engines.report_exporter import export_assessment_pdf_and_html
+            origin = res.get("origin", "http://localhost")
+            rec_id = f"AMA-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+            rec_for_pdf = {
+                "id": rec_id,
+                "name": f"Assess MyApp: {origin}",
+                "model_name": f"Web App: {origin}",
+                "model_id": origin,
+                "company": "Public Web App",
+                "model_company": "Web Application Review",
+                "model_tier": "Public-First Review",
+                "target_type": "website",
+                "target_input": origin,
+                "scan_profile": "owasp_core",
+                "audit_profile_name": "Public-First Web Audit",
+                "audit_profile_tier": "Public-First Review",
+                "overall_safety_score": 85 if len(res.get("issues_observed", [])) == 0 else max(40, 100 - len(res.get("issues_observed", [])) * 12),
+                "safety_grade": "A" if len(res.get("issues_observed", [])) == 0 else "B",
+                "max_severity_found": "HIGH" if any(iss.get("severity") == "HIGH" for iss in res.get("issues_observed", [])) else ("MEDIUM" if res.get("issues_observed") else "LOW"),
+                "circuit_breaker_triggered": False,
+                "launch_readiness": "CONDITIONAL_APPROVAL" if res.get("issues_observed") else "PRODUCTION_READY",
+                "attack_success_rate": round(len(res.get("issues_observed", [])) / max(1, len(res.get("issues_observed", [])) + len(res.get("positive_observations", []))), 2),
+                "total_prompts_tested": len(res.get("issues_observed", [])) + len(res.get("positive_observations", [])),
+                "total_prompts_planned": len(res.get("issues_observed", [])) + len(res.get("positive_observations", [])),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "status": "PARTIAL" if res.get("unassessed_areas") else "COMPLETE",
+                "summary": f"Public review of {origin}: {len(res.get('issues_observed', []))} issue(s), {len(res.get('positive_observations', []))} verified baseline(s).",
+                "counts": {
+                    "issues": len(res.get("issues_observed", [])),
+                    "no_issue": len(res.get("positive_observations", [])),
+                    "not_completed": len(res.get("unassessed_areas", [])),
+                    "not_applicable": 0
+                },
+                "findings": [
+                    {
+                        "domain": iss.get("domain", "General"),
+                        "severity": iss.get("severity", "MEDIUM"),
+                        "title": iss.get("issue", "Security / Usability Issue"),
+                        "observed": iss.get("evidence", ""),
+                        "action": iss.get("fix", ""),
+                        "evidence": iss.get("evidence", ""),
+                        "why_it_matters": "Affects security posture, usability, or browser privacy.",
+                        "business_impact": "Exposes web assets to client-side attacks or degraded user trust.",
+                        "attack_scenario": f"An attacker attempts cross-origin attacks or directory harvesting against {origin}.",
+                        "code_fix": iss.get("fix", ""),
+                        "compliance": "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
+                    }
+                    for iss in res.get("issues_observed", [])
+                ],
+                "positive_observations": res.get("positive_observations", []),
+                "unassessed_areas": res.get("what_could_not_be_assessed", []),
+                "next_steps": res.get("next_steps_required_access", [])
+            }
+            pdf_path, _ = export_assessment_pdf_and_html(rec_for_pdf)
+            if pdf_path and os.path.exists(pdf_path):
+                with open(pdf_path, "rb") as f_pdf:
+                    st.download_button(
+                        "📕 Download PDF Report (.PDF)",
+                        data=f_pdf.read(),
+                        file_name=f"AssessMyApp_{res['origin'].replace('://', '_').replace(':', '_')}.pdf",
+                        mime="application/pdf",
+                        type="primary"
+                    )
+            else:
+                st.caption("📕 PDF report could not be compiled.")
+        except Exception as e:
+            st.caption(f"📕 PDF generation note: {e}")
 
 
 def build_markdown_report(res: dict) -> str:

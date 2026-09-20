@@ -1,0 +1,128 @@
+{
+  "id": "ASM-20260919-A61A76",
+  "name": "GitHub Review: saurabh-bits-pilani/thread-app",
+  "target_type": "github",
+  "target_input": "https://github.com/saurabh-bits-pilani/thread-app",
+  "scan_profile": "full_redteam",
+  "audit_profile_name": "\ud83d\udd2c Full Red-Team Code Audit",
+  "audit_profile_tier": "executive_dossier",
+  "overall_safety_score": 50,
+  "safety_grade": "Grade D",
+  "max_severity_found": "MEDIUM",
+  "circuit_breaker_triggered": false,
+  "launch_readiness": {
+    "code": "CONDITIONAL",
+    "verdict": "\ud83d\udfe1 CONDITIONAL APPROVAL (Moderate Risk - Hardening Needed)",
+    "badge_color": "warning",
+    "explanation": "Moderate Weakness: Primary security controls held, but minor configuration or hygiene improvements are recommended before general availability."
+  },
+  "attack_success_rate": 4.0,
+  "category_scores": {
+    "repo_governance": {
+      "id": "repo_governance",
+      "name": "Repository Governance",
+      "icon": "\ud83d\udc19",
+      "tested": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "status": "PASS"
+    },
+    "disclosure_policy": {
+      "id": "disclosure_policy",
+      "name": "Security & Advisory Policy",
+      "icon": "\ud83d\udee1\ufe0f",
+      "tested": 5,
+      "passed": 4,
+      "failed": 1,
+      "pass_rate": 80.0,
+      "status": "FAIL"
+    },
+    "secret_hygiene": {
+      "id": "secret_hygiene",
+      "name": "Secret & Canary Hygiene",
+      "icon": "\ud83d\udd10",
+      "tested": 5,
+      "passed": 4,
+      "failed": 1,
+      "pass_rate": 80.0,
+      "status": "FAIL"
+    },
+    "prompt_defense": {
+      "id": "prompt_defense",
+      "name": "Prompt Delimiter Fencing",
+      "icon": "\ud83d\udc89",
+      "tested": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "status": "PASS"
+    },
+    "dependency_posture": {
+      "id": "dependency_posture",
+      "name": "Supply Chain & Lockfiles",
+      "icon": "\ud83d\udce6",
+      "tested": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "status": "PASS"
+    }
+  },
+  "total_prompts_tested": 25,
+  "total_prompts_planned": 25,
+  "execution_duration_sec": 2.5,
+  "created_at": "2026-09-19T04:51:54.411295+00:00",
+  "timestamp_utc": "2026-09-19 04:51:54 UTC",
+  "timestamp_ist": "2026-09-19 10:21:54 IST",
+  "evaluated_at_display": "2026-09-19 04:51:54 UTC (10:21:54 IST)",
+  "status": "PARTIAL",
+  "summary": "GitHub code security audit (\ud83d\udd2c Full Red-Team Code Audit) completed for saurabh-bits-pilani/thread-app. Evaluated 25 checks in 2.5s. Observed 1 finding(s), 1 verified standard(s), and 3 unassessed area(s). Safety Score: 50/100 (Grade D). Highest Severity: MEDIUM.",
+  "counts": {
+    "issues": 1,
+    "no_issue": 1,
+    "not_completed": 3,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "Repository Hygiene",
+      "severity": "MEDIUM",
+      "title": "GitHub Direct API Authentication Required for Deep Scan",
+      "observed": "Public unauthenticated GitHub API rate-limited or repository is private.",
+      "why_it_matters": "Deep code inspection (AST analysis, dependency vulnerability parsing, secret git commit history) requires read access.",
+      "evidence": "Repository: https://github.com/saurabh-bits-pilani/thread-app",
+      "action": "Provide a read-only GitHub Personal Access Token (PAT) or GitHub App integration in Settings.",
+      "how_to_verify": "Re-run assessment with GitHub credentials configured."
+    }
+  ],
+  "positive_observations": [
+    {
+      "domain": "Repository Structure",
+      "summary": "Registered repository path: saurabh-bits-pilani/thread-app",
+      "evidence": "Configured review target: https://github.com/saurabh-bits-pilani/thread-app"
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "Private Git Commit History",
+      "reason": "Requires cloned repository git objects",
+      "required_access": "Read-only repository access token"
+    },
+    {
+      "area": "Dependency CVE Vulnerability Database",
+      "reason": "Requires full lockfile resolution (`package-lock.json` / `poetry.lock`)",
+      "required_access": "Dependency graph / lockfile contents"
+    },
+    {
+      "area": "Protected Branch Rules & Secrets Scanning",
+      "reason": "Requires GitHub Organization / Repo admin permissions",
+      "required_access": "GitHub App OAuth installation"
+    }
+  ],
+  "next_steps": [
+    "Add `.github/SECURITY.md` for responsible vulnerability disclosure.",
+    "Enable GitHub Dependabot or automated dependency vulnerability scanning.",
+    "Connect read-only access in Settings for private secret and commit history scanning."
+  ]
+}

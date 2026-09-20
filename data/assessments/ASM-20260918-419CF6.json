@@ -1,0 +1,40 @@
+{
+  "id": "ASM-20260918-419CF6",
+  "name": "Ollama Audit: llama3.2:1b (Baseline (Unprotected))",
+  "target_type": "local_model",
+  "target_input": "http://127.0.0.1:8080 [llama3.2:1b]",
+  "created_at": "2026-09-18T12:04:35.613788+00:00",
+  "status": "PARTIAL",
+  "summary": "Could not connect to Ollama Gateway at http://127.0.0.1:8080. Probes were not dispatched to protect network integrity.",
+  "counts": {
+    "issues": 1,
+    "no_issue": 0,
+    "not_completed": 10,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "Target Connectivity",
+      "severity": "HIGH",
+      "title": "Gateway Offline at http://127.0.0.1:8080",
+      "observed": "Connection to http://127.0.0.1:8080/models was refused or timed out.",
+      "why_it_matters": "Ollama local model security probes require an active gateway process.",
+      "evidence": "Failed connection attempt to http://127.0.0.1:8080/models",
+      "action": "Ensure Ollama is running (`ollama serve`) and the gateway is running (`python ollama_gateway.py`).",
+      "how_to_verify": "Verify `curl http://127.0.0.1:8080/models` returns model list."
+    }
+  ],
+  "positive_observations": [],
+  "unassessed_areas": [
+    {
+      "area": "Garak Adversarial Probes (10 Checks)",
+      "reason": "Target gateway unreachable during audit",
+      "required_access": "Active Ollama Gateway on http://127.0.0.1:8080"
+    }
+  ],
+  "next_steps": [
+    "Start Ollama locally: `ollama run llama3.2:1b`",
+    "Start Ollama Gateway: `python ollama_gateway.py`",
+    "If assessing via cloud web app, tunnel port 8080 via ngrok (`ngrok http 8080`) or run ATLAS-Risk locally."
+  ]
+}

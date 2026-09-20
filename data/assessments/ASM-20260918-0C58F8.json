@@ -1,0 +1,91 @@
+{
+  "id": "ASM-20260918-0C58F8",
+  "name": "Architecture Audit: AI Application Architecture",
+  "target_type": "questionnaire",
+  "target_input": "AI Application Architecture (Public Web Interface)",
+  "created_at": "2026-09-18T12:04:45.016423+00:00",
+  "status": "PARTIAL",
+  "summary": "Comprehensive architectural threat evaluation completed for 'AI Application Architecture'. Identified 1 architectural security finding(s) with actionable remediation, 9 verified baseline control(s), and 2 dynamic runtime area(s) requiring a live connection.",
+  "counts": {
+    "issues": 1,
+    "no_issue": 9,
+    "not_completed": 2,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "OWASP LLM02: Sensitive Information Disclosure",
+      "severity": "HIGH",
+      "title": "Sensitive Data Handled Without Output Redaction Guardrails",
+      "observed": "Application processes customer PII, credentials, or financial records without automated output redaction.",
+      "why_it_matters": "A prompt injection or model hallucination could disclose confidential records across user sessions or to unauthorized callers.",
+      "evidence": "Sensitive data level: 'High - Processes credentials, passwords, financial records, or PII' with no output redaction guardrails configured.",
+      "action": "Deploy an output policy filter (e.g. Microsoft Presidio, regex PII scanner) to redact credit cards, social security numbers, API tokens, and passwords prior to displaying responses.",
+      "how_to_verify": "Test with queries requesting sensitive records and verify output scanner replaces values with `[REDACTED]`."
+    }
+  ],
+  "positive_observations": [
+    {
+      "domain": "Architecture Profiling",
+      "summary": "System Profile declared for 'AI Application Architecture'",
+      "evidence": "Purpose: General operational assistant | Exposure: Public Web Interface (Open to anonymous internet users) | Business Impact: Medium (Internal operational assistant)"
+    },
+    {
+      "domain": "OWASP LLM01: Prompt Injection",
+      "summary": "Prompt injection defenses declared for public surface",
+      "evidence": "Active defenses: System Prompt Fencing & Delimiters"
+    },
+    {
+      "domain": "OWASP LLM07: System Prompt Protection",
+      "summary": "System prompt fencing guardrail enabled",
+      "evidence": "Developer instructions isolated using delimiter fencing."
+    },
+    {
+      "domain": "OWASP LLM08: Knowledge Isolation",
+      "summary": "RAG knowledge store restricted to curated internal sources",
+      "evidence": "Knowledge store does not ingest untrusted third-party web content."
+    },
+    {
+      "domain": "OWASP LLM06: Agency Governance",
+      "summary": "Tools restricted to read-only lookup APIs",
+      "evidence": "No destructive or state-changing autonomous permissions granted to model."
+    },
+    {
+      "domain": "OWASP LLM01: Memory Isolation [MITRE AML.T0053]",
+      "summary": "Agent context memory isolated from persistent long-term storage",
+      "evidence": "Context lifetime bounded to In-Session Memory (Retained across conversational turns)."
+    },
+    {
+      "domain": "OWASP LLM05: Output Defense [MITRE AML.T0051]",
+      "summary": "Output validation active for downstream execution",
+      "evidence": "Validation gate configured: Strict JSON schema validation & code execution sandboxing."
+    },
+    {
+      "domain": "OWASP LLM10: Consumption Controls [MITRE AML.T0029]",
+      "summary": "Rate limiting and token expenditure protections active",
+      "evidence": "Active controls: Rate Limiting & Abuse Throttling"
+    },
+    {
+      "domain": "Telemetry & Compliance [MITRE AML.TA0011]",
+      "summary": "Prompt and response security audit logging active",
+      "evidence": "Persistent logs available for incident forensics and compliance reviews."
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "Live Dynamic Runtime Penetration Testing",
+      "reason": "Questionnaire evaluation is an architectural threat analysis; live network exploit probes were not dispatched.",
+      "required_access": "Connect live API endpoint or Ollama Gateway in New Assessment"
+    },
+    {
+      "area": "Host Operating System & Container Kernel Security",
+      "reason": "Evaluates LLM application layer; infrastructure host configuration requires cloud/host audit.",
+      "required_access": "Cloud security audit role / host scanner"
+    }
+  ],
+  "next_steps": [
+    "Implement recommended input fencing and prompt isolation guardrails.",
+    "Maintain read-only boundaries on tool integrations.",
+    "Connect your live API endpoint or local Ollama model in ATLAS-Risk to perform active dynamic penetration testing."
+  ]
+}

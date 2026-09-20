@@ -1,0 +1,45 @@
+{
+  "id": "ASM-20260917-80B221",
+  "name": "Chatbot Audit: Payment Router Agent",
+  "target_type": "chatbot",
+  "target_input": "https://api.example.com/v1/chat (OpenAI Compatible API (/v1/chat/completions))",
+  "created_at": "2026-09-17T21:13:34.600812+00:00",
+  "status": "PARTIAL",
+  "summary": "AI Chatbot audit completed for Payment Router Agent. Observed 1 finding(s), 0 verified behavior(s), and 2 unassessed boundary item(s).",
+  "counts": {
+    "issues": 1,
+    "no_issue": 0,
+    "not_completed": 2,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "Endpoint Connectivity",
+      "severity": "HIGH",
+      "title": "Chatbot Endpoint Unreachable",
+      "observed": "Connection attempt to https://api.example.com/v1/chat failed or timed out.",
+      "why_it_matters": "Probing and boundary validation cannot proceed without an accessible endpoint.",
+      "evidence": "Endpoint connection failed for https://api.example.com/v1/chat",
+      "action": "Ensure the chatbot server or webhook is online and public routing is configured.",
+      "how_to_verify": "Run `curl -I -X POST https://api.example.com/v1/chat` to verify responsiveness."
+    }
+  ],
+  "positive_observations": [],
+  "unassessed_areas": [
+    {
+      "area": "Underlying Model Weights & Architecture",
+      "reason": "Cloud API hides base model checkpoint",
+      "required_access": "Model provider transparency report"
+    },
+    {
+      "area": "Retrieval-Augmented Vector Database (RAG)",
+      "reason": "Internal vector store is not directly exposed",
+      "required_access": "Vector database read telemetry"
+    }
+  ],
+  "next_steps": [
+    "Deploy input/output guardrail filters to enforce system prompt boundary defense.",
+    "Monitor inference latency and rate-limit high-frequency requests.",
+    "Configure authorized token credentials to enable deeper automated injection testing."
+  ]
+}

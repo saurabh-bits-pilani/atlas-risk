@@ -1,0 +1,41 @@
+{
+  "id": "ASM-20260918-6D5BFC",
+  "name": "OpenRouter Cloud Audit: nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "target_type": "openrouter",
+  "target_input": "OpenRouter: nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "persona": "persona_3_openrouter",
+  "created_at": "2026-09-18T12:04:16.055915+00:00",
+  "status": "PARTIAL",
+  "summary": "Assessment could not dispatch probes because no OpenRouter API key was supplied.",
+  "counts": {
+    "issues": 1,
+    "no_issue": 0,
+    "not_completed": 10,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "Authentication / Configuration",
+      "severity": "HIGH",
+      "title": "Missing OpenRouter API Key",
+      "observed": "An API key is required to query OpenRouter cloud models.",
+      "why_it_matters": "Garak adversarial probes cannot be dispatched without API access.",
+      "evidence": "openrouter_key input was empty",
+      "action": "Enter your free OpenRouter API key in Step 2.",
+      "how_to_verify": "Acquire key from openrouter.ai/keys and retest."
+    }
+  ],
+  "positive_observations": [],
+  "unassessed_areas": [
+    {
+      "area": "Garak Adversarial Suite (10 Probes)",
+      "reason": "No API key configured",
+      "required_access": "OpenRouter API Key in Step 2"
+    }
+  ],
+  "next_steps": [
+    "Get a free OpenRouter key at https://openrouter.ai/keys",
+    "Enter the key in Step 2 and run the assessment.",
+    "Or switch to Persona 1 (Local Ollama) for zero-key local scanning."
+  ]
+}

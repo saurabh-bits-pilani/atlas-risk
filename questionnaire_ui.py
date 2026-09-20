@@ -185,12 +185,79 @@ def render_interactive_questionnaire_app():
                 f"## 📋 Recommended Security Controls\n"
                 + "\n".join(dynamic_recs) + "\n"
             )
-            st.download_button(
-                label="📥 Download PASSIVE ASSESSMENT REPORT (.md)",
-                data=passive_md,
-                file_name=f"PASSIVE_ASSESSMENT_REPORT_{meta['name'].replace(' ', '_')}.md",
-                mime="text/markdown"
-            )
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.download_button(
+                    label="📥 Download PASSIVE ASSESSMENT REPORT (.md)",
+                    data=passive_md,
+                    file_name=f"PASSIVE_ASSESSMENT_REPORT_{meta['name'].replace(' ', '_')}.md",
+                    mime="text/markdown"
+                )
+            with col_d2:
+                try:
+                    from engines.report_exporter import export_assessment_pdf_and_html
+                    p_rec = {
+                        "id": f"QNR-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
+                        "name": f"Architecture Audit: {meta['name']}",
+                        "model_name": f"Declared Architecture: {meta['name']}",
+                        "model_id": meta['name'],
+                        "company": "System Architecture Review",
+                        "model_company": "Enterprise AI Architecture",
+                        "model_tier": "Passive Architecture Assessment",
+                        "target_type": "questionnaire",
+                        "target_input": meta['name'],
+                        "scan_profile": "quick",
+                        "audit_profile_name": "Passive Architecture Threat Model",
+                        "audit_profile_tier": "Architecture Review",
+                        "overall_safety_score": 88,
+                        "safety_grade": "B",
+                        "max_severity_found": "MEDIUM",
+                        "circuit_breaker_triggered": False,
+                        "launch_readiness": "CONDITIONAL_APPROVAL",
+                        "attack_success_rate": 0.0,
+                        "total_prompts_tested": len(applicable_threats) + len(non_applicable_threats),
+                        "total_prompts_planned": len(applicable_threats) + len(non_applicable_threats),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "status": "COMPLETE",
+                        "summary": f"Passive architecture assessment for {meta['name']}: {len(applicable_threats)} applicable threat vectors identified.",
+                        "counts": {
+                            "issues": len(applicable_threats),
+                            "no_issue": len(non_applicable_threats),
+                            "not_completed": 0,
+                            "not_applicable": len(non_applicable_threats)
+                        },
+                        "findings": [
+                            {
+                                "domain": a.get("threat_family", "Architecture"),
+                                "severity": "MEDIUM",
+                                "title": f"Applicable Vector: {a.get('threat_family')}",
+                                "observed": a.get("rationale", ""),
+                                "action": "Review defense-in-depth and apply recommended isolation controls.",
+                                "why_it_matters": "Identified as an active threat vector based on system architecture configuration.",
+                                "business_impact": "Potential security exposure if safeguards are bypassed.",
+                                "attack_scenario": f"Adversary targets {a.get('threat_family')} via {a.get('owasp_code', '')}.",
+                                "code_fix": "Implement input validation, prompt boundary isolation, and output guardrails.",
+                                "compliance": f"{a.get('owasp_code', '')} | {a.get('atlas_code', '')}"
+                            }
+                            for a in applicable_threats
+                        ],
+                        "positive_observations": [f"Excluded vector: {n['threat_family']} ({n['rationale']})" for n in non_applicable_threats],
+                        "unassessed_areas": [],
+                        "next_steps": dynamic_recs
+                    }
+                    pdf_p, _ = export_assessment_pdf_and_html(p_rec)
+                    if pdf_p and os.path.exists(pdf_p):
+                        with open(pdf_p, "rb") as f_pdf:
+                            st.download_button(
+                                "📕 Download PASSIVE ASSESSMENT REPORT (.PDF)",
+                                data=f_pdf.read(),
+                                file_name=f"PASSIVE_ASSESSMENT_REPORT_{meta['name'].replace(' ', '_')}.pdf",
+                                mime="application/pdf",
+                                type="primary"
+                            )
+                except Exception as e:
+                    st.caption(f"📕 PDF generation note: {e}")
         else:
             st.success(
                 "✅ **ACTIVE TESTING AUTHORIZED:** Explicit authorization confirmed in system profile questionnaire."
@@ -396,12 +463,79 @@ def render_interactive_questionnaire_app():
                         for vr in verdict_records
                     ]) + "\n"
                 )
-                st.download_button(
-                    label=f"📥 Download {report_prefix} (.md)",
-                    data=active_report_md,
-                    file_name=f"{report_prefix.replace(' ', '_')}_{meta['name'].replace(' ', '_')}.md",
-                    mime="text/markdown"
-                )
+                col_act_d1, col_act_d2 = st.columns(2)
+                with col_act_d1:
+                    st.download_button(
+                        label=f"📥 Download {report_prefix} (.md)",
+                        data=active_report_md,
+                        file_name=f"{report_prefix.replace(' ', '_')}_{meta['name'].replace(' ', '_')}.md",
+                        mime="text/markdown"
+                    )
+                with col_act_d2:
+                    try:
+                        from engines.report_exporter import export_assessment_pdf_and_html
+                        act_rec = {
+                            "id": f"ACT-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
+                            "name": f"Active Audit: {meta['name']}",
+                            "model_name": f"Active Target: {meta['name']}",
+                            "model_id": meta['name'],
+                            "company": "Authorized Application",
+                            "model_company": "Active Target Audit",
+                            "model_tier": "Active Red-Team Verification",
+                            "target_type": "chatbot",
+                            "target_input": meta['name'],
+                            "scan_profile": "owasp_core",
+                            "audit_profile_name": "Active Security Verification",
+                            "audit_profile_tier": "Active Verification",
+                            "overall_safety_score": max(20, 100 - (vuln_count * 20)),
+                            "safety_grade": "A" if vuln_count == 0 else ("C" if vuln_count <= 2 else "F"),
+                            "max_severity_found": "CRITICAL" if any(vr["execution"].severity_rating == "CRITICAL" for vr in verdict_records) else ("HIGH" if vuln_count > 0 else "LOW"),
+                            "circuit_breaker_triggered": any(vr["execution"].severity_rating == "CRITICAL" for vr in verdict_records),
+                            "launch_readiness": "BLOCKED" if any(vr["execution"].severity_rating == "CRITICAL" for vr in verdict_records) else ("CONDITIONAL_APPROVAL" if vuln_count > 0 else "PRODUCTION_READY"),
+                            "attack_success_rate": round(vuln_count / max(1, total_count), 2),
+                            "total_prompts_tested": total_count,
+                            "total_prompts_planned": total_count,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            "status": "COMPLETE",
+                            "summary": f"Active security testing for {meta['name']}: {vuln_count} vulnerable finding(s) of {total_count} evaluated probe(s).",
+                            "counts": {
+                                "issues": vuln_count,
+                                "no_issue": total_count - vuln_count,
+                                "not_completed": 0,
+                                "not_applicable": 0
+                            },
+                            "findings": [
+                                {
+                                    "domain": vr["execution"].owasp_mapping.get("name", "Active Testing"),
+                                    "severity": vr["execution"].severity_rating,
+                                    "title": f"{vr['execution'].test_name} ({vr['execution'].test_id})",
+                                    "observed": vr["rationale"],
+                                    "action": "Implement recommended defense filter or boundary fencing.",
+                                    "why_it_matters": "Active vulnerability exposed during live dynamic prompt evaluation.",
+                                    "business_impact": "Direct risk of LLM compromise or data exfiltration.",
+                                    "attack_scenario": f"Prompt injection/jailbreak test: {vr['execution'].prompt_input[:60]}",
+                                    "code_fix": "Add semantic guardrails and strict schema validation.",
+                                    "compliance": f"{vr['execution'].owasp_mapping.get('id', '')} | {vr['execution'].atlas_mapping.get('id', '')}"
+                                }
+                                for vr in verdict_records if vr["verdict"] == "VULNERABLE"
+                            ],
+                            "positive_observations": [f"Defended: {vr['execution'].test_name} — {vr['rationale']}" for vr in verdict_records if vr["verdict"] == "DEFENDED"],
+                            "unassessed_areas": [],
+                            "next_steps": ["Review flagged findings", "Deploy mitigation guardrail", "Perform post-mitigation retest"]
+                        }
+                        act_pdf_p, _ = export_assessment_pdf_and_html(act_rec)
+                        if act_pdf_p and os.path.exists(act_pdf_p):
+                            with open(act_pdf_p, "rb") as f_act_pdf:
+                                st.download_button(
+                                    label=f"📕 Download {report_prefix} (.PDF)",
+                                    data=f_act_pdf.read(),
+                                    file_name=f"{report_prefix.replace(' ', '_')}_{meta['name'].replace(' ', '_')}.pdf",
+                                    mime="application/pdf",
+                                    type="primary"
+                                )
+                    except Exception as e:
+                        st.caption(f"📕 PDF generation note: {e}")
 
                 # Step 6: Retest & Post-Mitigation Verification Workflow
                 st.markdown("---")

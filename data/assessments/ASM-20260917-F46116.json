@@ -1,0 +1,66 @@
+{
+  "id": "ASM-20260917-F46116",
+  "name": "GitHub Review: octocat/Hello-World",
+  "target_type": "github",
+  "target_input": "https://github.com/octocat/Hello-World",
+  "created_at": "2026-09-17T21:13:22.035455+00:00",
+  "status": "PARTIAL",
+  "summary": "Bounded repository review completed for octocat/Hello-World. Identified 2 finding(s), 1 verified standard(s), and 3 unassessed area(s) requiring deeper access.",
+  "counts": {
+    "issues": 2,
+    "no_issue": 1,
+    "not_completed": 3,
+    "not_applicable": 0
+  },
+  "findings": [
+    {
+      "domain": "Governance & Licensing",
+      "severity": "LOW",
+      "title": "Missing Open Source License (LICENSE)",
+      "observed": "No declared license found in repository root.",
+      "why_it_matters": "Without a license, default copyright applies, making reuse or dependency integration legally ambiguous.",
+      "evidence": "Inspected metadata for octocat/Hello-World",
+      "action": "Add an appropriate license (e.g. MIT, Apache-2.0) to the repository root.",
+      "how_to_verify": "Verify GitHub recognizes the license badge in the repository sidebar."
+    },
+    {
+      "domain": "Vulnerability Disclosure",
+      "severity": "MEDIUM",
+      "title": "Missing Security Policy (`SECURITY.md`)",
+      "observed": "No `SECURITY.md` found in repository root or `.github/` folder.",
+      "why_it_matters": "External security researchers need a dedicated disclosure channel to report vulnerabilities privately.",
+      "evidence": "GET /repos/octocat/Hello-World/contents/SECURITY.md returned 404",
+      "action": "Create a `.github/SECURITY.md` file specifying your responsible disclosure email or GitHub Security Advisory process.",
+      "how_to_verify": "Confirm security policy appears under the Security tab in GitHub."
+    }
+  ],
+  "positive_observations": [
+    {
+      "domain": "Repository Visibility",
+      "summary": "Verified public repository: octocat/Hello-World",
+      "evidence": "Repository is publicly reachable on default branch 'master'."
+    }
+  ],
+  "unassessed_areas": [
+    {
+      "area": "Private Git Commit History",
+      "reason": "Requires cloned repository git objects",
+      "required_access": "Read-only repository access token"
+    },
+    {
+      "area": "Dependency CVE Vulnerability Database",
+      "reason": "Requires full lockfile resolution (`package-lock.json` / `poetry.lock`)",
+      "required_access": "Dependency graph / lockfile contents"
+    },
+    {
+      "area": "Protected Branch Rules & Secrets Scanning",
+      "reason": "Requires GitHub Organization / Repo admin permissions",
+      "required_access": "GitHub App OAuth installation"
+    }
+  ],
+  "next_steps": [
+    "Add `.github/SECURITY.md` for responsible vulnerability disclosure.",
+    "Enable GitHub Dependabot or automated dependency vulnerability scanning.",
+    "Connect read-only access in Settings for private secret and commit history scanning."
+  ]
+}

@@ -69,6 +69,18 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                     type="primary",
                     key=f"dl_pdf_{rec_id}"
                 )
+        else:
+            if st.button("🔄 Generate PDF", key=f"gen_pdf_btn_{rec_id}"):
+                with st.spinner("Generating PDF report..."):
+                    try:
+                        p_file, _ = export_assessment_pdf_and_html(record)
+                        if p_file and os.path.exists(p_file):
+                            st.success("PDF generated!")
+                            st.rerun()
+                        else:
+                            st.error("Could not generate PDF.")
+                    except Exception as err:
+                        st.error(f"PDF generation failed: {err}")
     with col_html:
         if html_path and os.path.exists(html_path):
             with open(html_path, "rb") as f_html:
@@ -79,6 +91,16 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                     mime="text/html",
                     key=f"dl_html_{rec_id}"
                 )
+        else:
+            if st.button("🔄 Generate HTML", key=f"gen_html_btn_{rec_id}"):
+                with st.spinner("Generating HTML report..."):
+                    try:
+                        _, h_file = export_assessment_pdf_and_html(record)
+                        if h_file and os.path.exists(h_file):
+                            st.success("HTML generated!")
+                            st.rerun()
+                    except Exception as err:
+                        st.error(f"HTML generation failed: {err}")
 
     # Top Metrics Row
     scan_profile = record.get("scan_profile")
