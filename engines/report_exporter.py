@@ -186,9 +186,10 @@ def _synthesize_category_scores(record: Dict[str, Any], findings: list, positive
                 continue
             c_def = cdata.get("defended", cdata.get("passed", 0))
             c_vuln = cdata.get("vulnerable", cdata.get("failed", 0))
-            c_unass = cdata.get("unassessed", 0)
             c_eval = cdata.get("tested", cdata.get("completed", c_def + c_vuln))
-            c_tot = cdata.get("total_planned", cdata.get("total", c_eval + c_unass))
+            c_tot = cdata.get("total_planned", cdata.get("total", 0))
+            c_unass = cdata.get("unassessed", max(0, c_tot - c_eval))
+            c_tot = max(c_tot, c_eval + c_unass)
             if c_eval == 0:
                 pass_rate = None
                 st = "UNASSESSED"
