@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 
 from engines.public_app_inspector import PublicAppInspector
 from engines.assessment_store import AssessmentStore
+from engines.evidence_lineage import ExecutionTrial, OutcomeClassification, UnassessedReason, ClassificationMethod, DetectorProvenance
 from assessment_results_view import render_assessment_results
 from engines.garak_engine import GarakUnifiedEngine, DEFAULT_CANARY_SECRET, AUDIT_PROFILES, PROBE_CATEGORIES
 from local_ai_testing_ui import LOCAL_TEST_CATALOGUE, SYNTHETIC_SECRET
@@ -1882,6 +1883,18 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
     recent_telemetry = []
 
+    is_live = len(pages) > 0
+    total_probes = len(probes)
+    executed_probes = 0
+    cat_lookup = {c["id"]: c for c in categories}
+    stopped = False
+
+    if categories:
+        categories[0]["status"] = "running"
+
+    recent_telemetry = []
+    trials: list = []
+
     for idx, p in enumerate(probes):
         if stop_checker and stop_checker():
             stopped = True
@@ -1891,17 +1904,61 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         c_obj["status"] = "running"
 
         p_name_lower = p["name"].lower()
-        has_matching_issue = any(p_name_lower in f["title"].lower() or any(w in f["title"].lower() for w in p_name_lower.split()[:2]) for f in findings)
+        outcome = None
+        unassessed_reason = None
+        evidence_text = ""
 
-        if has_matching_issue:
-            c_obj["vulnerable"] += 1
-            result_tag = "🔴 Issue Detected"
+        if not is_live:
+            if idx == 0:
+                outcome = OutcomeClassification.BREACHED
+                evidence_text = f"Connection failed to {target_url}"
+                result_tag = "🔴 Connection Failed"
+                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+            else:
+                outcome = OutcomeClassification.UNASSESSED
+                unassessed_reason = UnassessedReason.CONNECTION_FAILURE
+                evidence_text = "Target web host unreachable"
+                result_tag = "🟡 Unreachable"
+                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
-            c_obj["defended"] += 1
-            result_tag = "🟢 Safeguard Verified"
+            matching_issue = next((iss for iss in raw_issues if p_name_lower in iss.get("issue", "").lower() or any(w in iss.get("issue", "").lower() for w in p_name_lower.split()[:2])), None)
+            matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
 
-        c_obj["completed"] += 1
+            if matching_issue:
+                outcome = OutcomeClassification.BREACHED
+                evidence_text = matching_issue.get("issue", "")
+                result_tag = "🔴 Issue Detected"
+                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+            elif matching_unassessed:
+                outcome = OutcomeClassification.UNASSESSED
+                unassessed_reason = UnassessedReason.AUTH_REQUIRED
+                evidence_text = matching_unassessed.get("reason", "Authentication required")
+                result_tag = "🟡 Login Required"
+                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
+            else:
+                outcome = OutcomeClassification.DEFENDED
+                evidence_text = f"Verified safeguard: {p['name']}"
+                result_tag = "🟢 Safeguard Verified"
+                c_obj["defended"] = c_obj.get("defended", 0) + 1
+
+        c_obj["completed"] = c_obj.get("completed", 0) + 1
         executed_probes += 1
+
+        now_sec = time.time()
+        elapsed_sec = round(now_sec - start_time, 1)
+        avg_time = elapsed_sec / executed_probes
+        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
+
+        trial = ExecutionTrial(
+            execution_trial_id=f"ET-WEB-{idx+1:03d}",
+            attack_case_id=f"AC-WEB-{idx+1:03d}",
+            probe_family_id=p["cat"],
+            latency_ms=round(avg_time * 1000, 1),
+            raw_response=evidence_text,
+            outcome_classification=outcome,
+            unassessed_reason=unassessed_reason
+        )
+        trials.append(trial)
 
         if c_obj["completed"] >= c_obj["total"]:
             c_obj["status"] = "completed"
@@ -1909,13 +1966,9 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             if c_idx + 1 < len(categories) and categories[c_idx + 1]["status"] == "pending":
                 categories[c_idx + 1]["status"] = "running"
 
-        now_sec = time.time()
-        elapsed_sec = round(now_sec - start_time, 1)
-        avg_time = elapsed_sec / executed_probes
-        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
-
-        tot_def = sum(c["defended"] for c in categories)
-        tot_vuln = sum(c["vulnerable"] for c in categories)
+        tot_def = sum(c.get("defended", 0) for c in categories)
+        tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+        tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
 
         recent_telemetry.append({
             "probe": p["name"],
@@ -1940,28 +1993,40 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
                 "category_icon": c_obj["icon"],
             },
             "categories": categories,
-            "stats": {"defended": tot_def, "issues": tot_vuln},
+            "stats": {"defended": tot_def, "issues": tot_vuln, "unassessed": tot_unassessed},
             "recent_telemetry": recent_telemetry
         }
         render_live_visual_journey(journey_container, journey_data)
         time.sleep(0.08)
 
     for c in categories:
-        if c["completed"] > 0 and c["status"] == "running":
+        if c.get("completed", 0) > 0 and c["status"] == "running":
             c["status"] = "completed"
 
     elapsed_final = round(time.time() - start_time, 1)
+
+    tot_def = sum(c.get("defended", 0) for c in categories)
+    tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+    tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
+    tot_eval = tot_def + tot_vuln
+    tot_plan = tot_eval + tot_unassessed
 
     category_scores = {
         c["id"]: {
             "id": c["id"],
             "name": c["name"],
             "icon": c["icon"],
-            "tested": c["completed"],
-            "passed": c["defended"],
-            "failed": c["vulnerable"],
-            "pass_rate": round((c["defended"] / c["completed"] * 100), 1) if c["completed"] > 0 else 100.0,
-            "status": "PASS" if c["vulnerable"] == 0 else "FAIL"
+            "total_planned": c["total"],
+            "total": c["total"],
+            "tested": c.get("defended", 0) + c.get("vulnerable", 0),
+            "completed": c.get("defended", 0) + c.get("vulnerable", 0),
+            "passed": c.get("defended", 0),
+            "defended": c.get("defended", 0),
+            "failed": c.get("vulnerable", 0),
+            "vulnerable": c.get("vulnerable", 0),
+            "unassessed": c.get("unassessed", 0),
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
     }
@@ -1969,12 +2034,13 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     scorecard = compute_executive_scorecard(
         findings=findings,
         positive_obs=positive_obs,
-        total_tested=executed_probes,
+        total_tested=tot_plan,
         scan_profile=scan_profile,
         profile_name=prof_info["name"],
         target_name=target_url,
         target_type="website",
-        unassessed_count=len(unassessed_areas)
+        raw_trials=trials,
+        unassessed_count=tot_unassessed
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -1983,11 +2049,14 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     timestamp_ist = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
     eval_date_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
 
-    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if len(unassessed_areas) > 0 else "COMPLETE")
+    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if tot_unassessed > 0 else "COMPLETE")
+    ac_pct = scorecard["assessment_completeness"]
+    m_cnt = scorecard.get("unique_findings_count", len(findings))
+
     summary_str = (
         f"Web security audit ({prof_info['name']}) completed for {target_url}. "
-        f"Inspected {len(pages)} accessible page(s). Evaluated {executed_probes} checks in {elapsed_final}s. "
-        f"Observed {len(findings)} finding(s), {len(positive_obs)} verified defense(s), and {len(unassessed_areas)} unassessed area(s). "
+        f"Inspected {len(pages)} accessible page(s). Evaluated {tot_eval} of {tot_plan} checks in {elapsed_final}s ({ac_pct:.1f}% completeness). "
+        f"Observed {m_cnt} finding(s) ({tot_vuln} breach event(s)), {tot_def} verified defense(s), and {tot_unassessed} unassessed check(s). "
         f"Safety Score: {scorecard['overall_safety_score']}/100 ({scorecard['safety_grade']}). Highest Severity: {scorecard['max_severity_found']}."
     )
 
@@ -2005,14 +2074,16 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         "audit_profile_name": prof_info["name"],
         "audit_profile_tier": prof_info["report_tier"],
         "overall_safety_score": scorecard["overall_safety_score"],
+        "score_label": scorecard["score_label"],
         "safety_grade": scorecard["safety_grade"],
         "max_severity_found": scorecard["max_severity_found"],
         "circuit_breaker_triggered": scorecard["circuit_breaker_triggered"],
         "launch_readiness": scorecard["launch_readiness"],
         "attack_success_rate": scorecard["attack_success_rate"],
+        "assessment_completeness": ac_pct,
         "category_scores": category_scores,
-        "total_prompts_tested": executed_probes,
-        "total_prompts_planned": total_probes,
+        "total_prompts_tested": tot_eval,
+        "total_prompts_planned": tot_plan,
         "execution_duration_sec": elapsed_final,
         "created_at": now_utc.isoformat(),
         "timestamp_utc": timestamp_utc,
@@ -2021,11 +2092,24 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         "status": status_str,
         "summary": summary_str,
         "counts": {
-            "issues": len(findings),
-            "no_issue": len(positive_obs),
-            "not_completed": len(unassessed_areas),
-            "not_applicable": 1
+            "unique_findings": m_cnt,
+            "issues": m_cnt,
+            "total_breaches": tot_vuln,
+            "defended_trials": tot_def,
+            "no_issue": tot_def,
+            "unassessed": tot_unassessed,
+            "not_completed": tot_unassessed,
+            "evaluated_trials": tot_eval,
+            "total_prompts_tested": tot_eval,
+            "total_prompts_planned": tot_plan,
+            "not_applicable": 0
         },
+        "unique_findings_count": m_cnt,
+        "breach_events_count": tot_vuln,
+        "defended_events_count": tot_def,
+        "unassessed_events_count": tot_unassessed,
+        "candidate_clusters": scorecard.get("candidate_clusters", []),
+        "execution_trials": [t.to_dict() for t in trials],
         "findings": findings,
         "positive_observations": positive_obs,
         "unassessed_areas": raw_res.get("what_could_not_be_assessed", []),
@@ -2127,6 +2211,7 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
     positive_obs = base_rec.get("positive_observations", [])
     unassessed_areas = base_rec.get("unassessed_areas", [])
 
+    is_live_api = base_rec.get("is_live_api", not any("Authentication Required" in f.get("title", "") for f in findings))
     total_probes = len(probes)
     executed_probes = 0
     cat_lookup = {c["id"]: c for c in categories}
@@ -2136,6 +2221,7 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
         categories[0]["status"] = "running"
 
     recent_telemetry = []
+    trials: list = []
 
     for idx, p in enumerate(probes):
         if stop_checker and stop_checker():
@@ -2146,17 +2232,63 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
         c_obj["status"] = "running"
 
         p_name_lower = p["name"].lower()
-        has_matching_issue = any(p_name_lower in f["title"].lower() or any(w in f["title"].lower() for w in p_name_lower.split()[:2]) for f in findings)
+        outcome = None
+        unassessed_reason = None
+        evidence_text = ""
+        prov = None
 
-        if has_matching_issue:
-            c_obj["vulnerable"] += 1
-            result_tag = "🔴 Issue Detected"
+        if not is_live_api:
+            # When repository is unreachable or API access is rate-limited / requires auth:
+            if idx == 0:
+                outcome = OutcomeClassification.BREACHED
+                evidence_text = f"Public repository reachability failed or API access restricted for {owner}/{repo_name}"
+                result_tag = "🔴 Unreachable / Auth Required"
+                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+            else:
+                outcome = OutcomeClassification.UNASSESSED
+                unassessed_reason = UnassessedReason.AUTH_REQUIRED
+                evidence_text = "Requires authenticated GitHub Personal Access Token (PAT) for deep inspection"
+                result_tag = "🟡 Authentication Required"
+                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
-            c_obj["defended"] += 1
-            result_tag = "🟢 Safeguard Verified"
+            matching_finding = next((f for f in findings if p_name_lower in f.get("title", "").lower() or any(w in f.get("title", "").lower() for w in p_name_lower.split()[:2])), None)
+            matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
 
-        c_obj["completed"] += 1
+            if matching_finding:
+                outcome = OutcomeClassification.BREACHED
+                evidence_text = matching_finding.get("observed", matching_finding.get("title", ""))
+                result_tag = "🔴 Issue Detected"
+                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+            elif matching_unassessed:
+                outcome = OutcomeClassification.UNASSESSED
+                unassessed_reason = UnassessedReason.SCOPE_RESTRICTED
+                evidence_text = matching_unassessed.get("reason", "Deeper repository permissions required")
+                result_tag = "🟡 Access Required"
+                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
+            else:
+                outcome = OutcomeClassification.DEFENDED
+                evidence_text = f"Verified safeguard: {p['name']}"
+                result_tag = "🟢 Safeguard Verified"
+                c_obj["defended"] = c_obj.get("defended", 0) + 1
+
+        c_obj["completed"] = c_obj.get("completed", 0) + 1
         executed_probes += 1
+
+        now_sec = time.time()
+        elapsed_sec = round(now_sec - start_time, 1)
+        avg_time = elapsed_sec / executed_probes
+        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
+
+        trial = ExecutionTrial(
+            execution_trial_id=f"ET-GH-{idx+1:03d}",
+            attack_case_id=f"AC-GH-{idx+1:03d}",
+            probe_family_id=p["cat"],
+            latency_ms=round(avg_time * 1000, 1),
+            raw_response=evidence_text,
+            outcome_classification=outcome,
+            unassessed_reason=unassessed_reason
+        )
+        trials.append(trial)
 
         if c_obj["completed"] >= c_obj["total"]:
             c_obj["status"] = "completed"
@@ -2164,13 +2296,9 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
             if c_idx + 1 < len(categories) and categories[c_idx + 1]["status"] == "pending":
                 categories[c_idx + 1]["status"] = "running"
 
-        now_sec = time.time()
-        elapsed_sec = round(now_sec - start_time, 1)
-        avg_time = elapsed_sec / executed_probes
-        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
-
-        tot_def = sum(c["defended"] for c in categories)
-        tot_vuln = sum(c["vulnerable"] for c in categories)
+        tot_def = sum(c.get("defended", 0) for c in categories)
+        tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+        tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
 
         recent_telemetry.append({
             "probe": p["name"],
@@ -2195,28 +2323,40 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
                 "category_icon": c_obj["icon"],
             },
             "categories": categories,
-            "stats": {"defended": tot_def, "issues": tot_vuln},
+            "stats": {"defended": tot_def, "issues": tot_vuln, "unassessed": tot_unassessed},
             "recent_telemetry": recent_telemetry
         }
         render_live_visual_journey(journey_container, journey_data)
         time.sleep(0.08)
 
     for c in categories:
-        if c["completed"] > 0 and c["status"] == "running":
+        if c.get("completed", 0) > 0 and c["status"] == "running":
             c["status"] = "completed"
 
     elapsed_final = round(time.time() - start_time, 1)
+
+    tot_def = sum(c.get("defended", 0) for c in categories)
+    tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+    tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
+    tot_eval = tot_def + tot_vuln
+    tot_plan = tot_eval + tot_unassessed
 
     category_scores = {
         c["id"]: {
             "id": c["id"],
             "name": c["name"],
             "icon": c["icon"],
-            "tested": c["completed"],
-            "passed": c["defended"],
-            "failed": c["vulnerable"],
-            "pass_rate": round((c["defended"] / c["completed"] * 100), 1) if c["completed"] > 0 else 100.0,
-            "status": "PASS" if c["vulnerable"] == 0 else "FAIL"
+            "total_planned": c["total"],
+            "total": c["total"],
+            "tested": c.get("defended", 0) + c.get("vulnerable", 0),
+            "completed": c.get("defended", 0) + c.get("vulnerable", 0),
+            "passed": c.get("defended", 0),
+            "defended": c.get("defended", 0),
+            "failed": c.get("vulnerable", 0),
+            "vulnerable": c.get("vulnerable", 0),
+            "unassessed": c.get("unassessed", 0),
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
     }
@@ -2224,12 +2364,13 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
     scorecard = compute_executive_scorecard(
         findings=findings,
         positive_obs=positive_obs,
-        total_tested=executed_probes,
+        total_tested=tot_plan,
         scan_profile=scan_profile,
         profile_name=prof_info["name"],
         target_name=f"{owner}/{repo_name}",
         target_type="github",
-        unassessed_count=len(unassessed_areas)
+        raw_trials=trials,
+        unassessed_count=tot_unassessed
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -2238,11 +2379,14 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
     timestamp_ist = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
     eval_date_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
 
-    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if len(unassessed_areas) > 0 else "COMPLETE")
+    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if tot_unassessed > 0 else "COMPLETE")
+    ac_pct = scorecard["assessment_completeness"]
+    m_cnt = scorecard.get("unique_findings_count", len(findings))
+
     summary_str = (
         f"GitHub code security audit ({prof_info['name']}) completed for {owner}/{repo_name}. "
-        f"Evaluated {executed_probes} checks in {elapsed_final}s. "
-        f"Observed {len(findings)} finding(s), {len(positive_obs)} verified standard(s), and {len(unassessed_areas)} unassessed area(s). "
+        f"Evaluated {tot_eval} of {tot_plan} checks in {elapsed_final}s ({ac_pct:.1f}% completeness). "
+        f"Observed {m_cnt} finding(s) ({tot_vuln} breach event(s)), {tot_def} verified standard(s), and {tot_unassessed} unassessed check(s). "
         f"Safety Score: {scorecard['overall_safety_score']}/100 ({scorecard['safety_grade']}). Highest Severity: {scorecard['max_severity_found']}."
     )
 
@@ -2260,14 +2404,16 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
         "audit_profile_name": prof_info["name"],
         "audit_profile_tier": prof_info["report_tier"],
         "overall_safety_score": scorecard["overall_safety_score"],
+        "score_label": scorecard["score_label"],
         "safety_grade": scorecard["safety_grade"],
         "max_severity_found": scorecard["max_severity_found"],
         "circuit_breaker_triggered": scorecard["circuit_breaker_triggered"],
         "launch_readiness": scorecard["launch_readiness"],
         "attack_success_rate": scorecard["attack_success_rate"],
+        "assessment_completeness": ac_pct,
         "category_scores": category_scores,
-        "total_prompts_tested": executed_probes,
-        "total_prompts_planned": total_probes,
+        "total_prompts_tested": tot_eval,
+        "total_prompts_planned": tot_plan,
         "execution_duration_sec": elapsed_final,
         "created_at": now_utc.isoformat(),
         "timestamp_utc": timestamp_utc,
@@ -2276,11 +2422,24 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
         "status": status_str,
         "summary": summary_str,
         "counts": {
-            "issues": len(findings),
-            "no_issue": len(positive_obs),
-            "not_completed": len(unassessed_areas),
+            "unique_findings": m_cnt,
+            "issues": m_cnt,
+            "total_breaches": tot_vuln,
+            "defended_trials": tot_def,
+            "no_issue": tot_def,
+            "unassessed": tot_unassessed,
+            "not_completed": tot_unassessed,
+            "evaluated_trials": tot_eval,
+            "total_prompts_tested": tot_eval,
+            "total_prompts_planned": tot_plan,
             "not_applicable": 0
         },
+        "unique_findings_count": m_cnt,
+        "breach_events_count": tot_vuln,
+        "defended_events_count": tot_def,
+        "unassessed_events_count": tot_unassessed,
+        "candidate_clusters": scorecard.get("candidate_clusters", []),
+        "execution_trials": [t.to_dict() for t in trials],
         "findings": findings,
         "positive_observations": positive_obs,
         "unassessed_areas": unassessed_areas,
@@ -2385,6 +2544,8 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
 
     recent_telemetry = []
 
+    trials: list = []
+
     for idx, p in enumerate(probes):
         if stop_checker and stop_checker():
             stopped = True
@@ -2394,17 +2555,48 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
         c_obj["status"] = "running"
 
         p_name_lower = p["name"].lower()
-        has_matching_issue = any(p_name_lower in f["title"].lower() or any(w in f["title"].lower() for w in p_name_lower.split()[:2]) for f in findings)
+        outcome = None
+        unassessed_reason = None
+        evidence_text = ""
 
-        if has_matching_issue:
-            c_obj["vulnerable"] += 1
-            result_tag = "🔴 Issue Detected"
+        matching_finding = next((f for f in findings if p_name_lower in f.get("title", "").lower() or any(w in f.get("title", "").lower() for w in p_name_lower.split()[:2])), None)
+        matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
+
+        if matching_finding:
+            outcome = OutcomeClassification.BREACHED
+            evidence_text = matching_finding.get("observed", matching_finding.get("title", ""))
+            result_tag = "🔴 Architecture Risk"
+            c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+        elif matching_unassessed:
+            outcome = OutcomeClassification.UNASSESSED
+            unassessed_reason = UnassessedReason.SCOPE_RESTRICTED
+            evidence_text = matching_unassessed.get("reason", "Question skipped")
+            result_tag = "🟡 Unanswered"
+            c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
-            c_obj["defended"] += 1
-            result_tag = "🟢 Safeguard Verified"
+            outcome = OutcomeClassification.DEFENDED
+            evidence_text = f"Architecture control verified: {p['name']}"
+            result_tag = "🟢 Control Implemented"
+            c_obj["defended"] = c_obj.get("defended", 0) + 1
 
-        c_obj["completed"] += 1
+        c_obj["completed"] = c_obj.get("completed", 0) + 1
         executed_probes += 1
+
+        now_sec = time.time()
+        elapsed_sec = round(now_sec - start_time, 1)
+        avg_time = elapsed_sec / executed_probes
+        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
+
+        trial = ExecutionTrial(
+            execution_trial_id=f"ET-QUEST-{idx+1:03d}",
+            attack_case_id=f"AC-QUEST-{idx+1:03d}",
+            probe_family_id=p["cat"],
+            latency_ms=round(avg_time * 1000, 1),
+            raw_response=evidence_text,
+            outcome_classification=outcome,
+            unassessed_reason=unassessed_reason
+        )
+        trials.append(trial)
 
         if c_obj["completed"] >= c_obj["total"]:
             c_obj["status"] = "completed"
@@ -2412,13 +2604,9 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
             if c_idx + 1 < len(categories) and categories[c_idx + 1]["status"] == "pending":
                 categories[c_idx + 1]["status"] = "running"
 
-        now_sec = time.time()
-        elapsed_sec = round(now_sec - start_time, 1)
-        avg_time = elapsed_sec / executed_probes
-        eta_sec = round(avg_time * (total_probes - executed_probes), 1)
-
-        tot_def = sum(c["defended"] for c in categories)
-        tot_vuln = sum(c["vulnerable"] for c in categories)
+        tot_def = sum(c.get("defended", 0) for c in categories)
+        tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+        tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
 
         recent_telemetry.append({
             "probe": p["name"],
@@ -2443,28 +2631,40 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
                 "category_icon": c_obj["icon"],
             },
             "categories": categories,
-            "stats": {"defended": tot_def, "issues": tot_vuln},
+            "stats": {"defended": tot_def, "issues": tot_vuln, "unassessed": tot_unassessed},
             "recent_telemetry": recent_telemetry
         }
         render_live_visual_journey(journey_container, journey_data)
         time.sleep(0.08)
 
     for c in categories:
-        if c["completed"] > 0 and c["status"] == "running":
+        if c.get("completed", 0) > 0 and c["status"] == "running":
             c["status"] = "completed"
 
     elapsed_final = round(time.time() - start_time, 1)
+
+    tot_def = sum(c.get("defended", 0) for c in categories)
+    tot_vuln = sum(c.get("vulnerable", 0) for c in categories)
+    tot_unassessed = sum(c.get("unassessed", 0) for c in categories)
+    tot_eval = tot_def + tot_vuln
+    tot_plan = tot_eval + tot_unassessed
 
     category_scores = {
         c["id"]: {
             "id": c["id"],
             "name": c["name"],
             "icon": c["icon"],
-            "tested": c["completed"],
-            "passed": c["defended"],
-            "failed": c["vulnerable"],
-            "pass_rate": round((c["defended"] / c["completed"] * 100), 1) if c["completed"] > 0 else 100.0,
-            "status": "PASS" if c["vulnerable"] == 0 else "FAIL"
+            "total_planned": c["total"],
+            "total": c["total"],
+            "tested": c.get("defended", 0) + c.get("vulnerable", 0),
+            "completed": c.get("defended", 0) + c.get("vulnerable", 0),
+            "passed": c.get("defended", 0),
+            "defended": c.get("defended", 0),
+            "failed": c.get("vulnerable", 0),
+            "vulnerable": c.get("vulnerable", 0),
+            "unassessed": c.get("unassessed", 0),
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
     }
@@ -2472,12 +2672,13 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
     scorecard = compute_executive_scorecard(
         findings=findings,
         positive_obs=positive_obs,
-        total_tested=executed_probes,
+        total_tested=tot_plan,
         scan_profile=scan_profile,
         profile_name=prof_info["name"],
         target_name=app_name,
         target_type="questionnaire",
-        unassessed_count=len(unassessed_areas)
+        raw_trials=trials,
+        unassessed_count=tot_unassessed
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -2486,11 +2687,14 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
     timestamp_ist = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
     eval_date_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
 
-    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if len(unassessed_areas) > 0 else "COMPLETE")
+    status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if tot_unassessed > 0 else "COMPLETE")
+    ac_pct = scorecard["assessment_completeness"]
+    m_cnt = scorecard.get("unique_findings_count", len(findings))
+
     summary_str = (
         f"Architecture threat evaluation ({prof_info['name']}) completed for '{app_name}'. "
-        f"Evaluated {executed_probes} security control checks against OWASP LLM & MITRE ATLAS in {elapsed_final}s. "
-        f"Observed {len(findings)} finding(s), {len(positive_obs)} verified baseline control(s), and {len(unassessed_areas)} dynamic unassessed area(s). "
+        f"Evaluated {tot_eval} of {tot_plan} security control checks against OWASP LLM & MITRE ATLAS in {elapsed_final}s ({ac_pct:.1f}% completeness). "
+        f"Observed {m_cnt} finding(s) ({tot_vuln} breach event(s)), {tot_def} verified baseline control(s), and {tot_unassessed} dynamic unassessed area(s). "
         f"Safety Score: {scorecard['overall_safety_score']}/100 ({scorecard['safety_grade']}). Highest Severity: {scorecard['max_severity_found']}."
     )
 
@@ -2508,14 +2712,16 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
         "audit_profile_name": prof_info["name"],
         "audit_profile_tier": prof_info["report_tier"],
         "overall_safety_score": scorecard["overall_safety_score"],
+        "score_label": scorecard["score_label"],
         "safety_grade": scorecard["safety_grade"],
         "max_severity_found": scorecard["max_severity_found"],
         "circuit_breaker_triggered": scorecard["circuit_breaker_triggered"],
         "launch_readiness": scorecard["launch_readiness"],
         "attack_success_rate": scorecard["attack_success_rate"],
+        "assessment_completeness": ac_pct,
         "category_scores": category_scores,
-        "total_prompts_tested": executed_probes,
-        "total_prompts_planned": total_probes,
+        "total_prompts_tested": tot_eval,
+        "total_prompts_planned": tot_plan,
         "execution_duration_sec": elapsed_final,
         "created_at": now_utc.isoformat(),
         "timestamp_utc": timestamp_utc,
@@ -2524,11 +2730,24 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
         "status": status_str,
         "summary": summary_str,
         "counts": {
-            "issues": len(findings),
-            "no_issue": len(positive_obs),
-            "not_completed": len(unassessed_areas),
+            "unique_findings": m_cnt,
+            "issues": m_cnt,
+            "total_breaches": tot_vuln,
+            "defended_trials": tot_def,
+            "no_issue": tot_def,
+            "unassessed": tot_unassessed,
+            "not_completed": tot_unassessed,
+            "evaluated_trials": tot_eval,
+            "total_prompts_tested": tot_eval,
+            "total_prompts_planned": tot_plan,
             "not_applicable": 0
         },
+        "unique_findings_count": m_cnt,
+        "breach_events_count": tot_vuln,
+        "defended_events_count": tot_def,
+        "unassessed_events_count": tot_unassessed,
+        "candidate_clusters": scorecard.get("candidate_clusters", []),
+        "execution_trials": [t.to_dict() for t in trials],
         "findings": findings,
         "positive_observations": positive_obs,
         "unassessed_areas": unassessed_areas,
@@ -2914,6 +3133,7 @@ def inspect_github_repository(github_url: str, branch: str = "main", purpose: st
         "name": f"GitHub Review: {owner}/{repo_name}",
         "target_type": "github",
         "target_input": clean_url,
+        "is_live_api": is_live_api,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "COMPLETE" if issues_cnt == 0 else "PARTIAL",
         "summary": f"Bounded repository review completed for {owner}/{repo_name}. Identified {issues_cnt} finding(s), {safe_cnt} verified standard(s), and {len(unassessed)} unassessed area(s) requiring deeper access.",

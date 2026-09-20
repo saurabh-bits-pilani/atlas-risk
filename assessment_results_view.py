@@ -273,15 +273,17 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
             cat_cols = st.columns(len(cat_list))
             for idx, c_data in enumerate(cat_list):
                 with cat_cols[idx]:
-                    c_tot = c_data.get("total", 0)
-                    c_comp = c_data.get("completed", 0)
-                    c_def = c_data.get("defended", 0)
-                    c_vuln = c_data.get("vulnerable", 0)
+                    c_tot = c_data.get("total_planned", c_data.get("total", 0))
+                    c_comp = c_data.get("tested", c_data.get("completed", 0))
+                    c_def = c_data.get("defended", c_data.get("passed", 0))
+                    c_vuln = c_data.get("vulnerable", c_data.get("failed", 0))
+                    c_unass = c_data.get("unassessed", 0)
                     resilience_pct = round((c_def / c_comp * 100), 1) if c_comp > 0 else 100.0
 
                     card_bg = "#f0fdf4" if c_vuln == 0 else "#fef2f2"
                     card_border = "#bbf7d0" if c_vuln == 0 else "#fca5a5"
                     res_color = "#16a34a" if c_vuln == 0 else "#dc2626"
+                    unass_str = f" | ⚠️ {c_unass} Unassessed" if c_unass > 0 else ""
 
                     st.markdown(f"""
                     <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 8px; padding: 10px 12px; min-height: 120px;">
@@ -293,7 +295,7 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                             {resilience_pct}%
                         </div>
                         <div style="font-size: 11px; color: #475569; margin-top: 2px;">
-                            🛡️ {c_def} Defended | 🚨 {c_vuln} Vuln
+                            🛡️ {c_def} Defended | 🚨 {c_vuln} Vuln{unass_str}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)

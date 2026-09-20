@@ -165,10 +165,39 @@ def _normalize_launch_readiness(launch_rd: Any, max_sev: str = "NONE", safety_sc
 def _synthesize_category_scores(record: Dict[str, Any], findings: list, positives: list) -> Dict[str, Any]:
     cat_scores = record.get("category_scores")
     if cat_scores and isinstance(cat_scores, dict) and len(cat_scores) > 0:
-        return cat_scores
-    
+        normalized = {}
+        for cid, cdata in cat_scores.items():
+            if not isinstance(cdata, dict):
+                continue
+            c_def = cdata.get("defended", cdata.get("passed", 0))
+            c_vuln = cdata.get("vulnerable", cdata.get("failed", 0))
+            c_unass = cdata.get("unassessed", 0)
+            c_eval = cdata.get("tested", cdata.get("completed", c_def + c_vuln))
+            c_tot = cdata.get("total_planned", cdata.get("total", c_eval + c_unass))
+            pass_rate = round((c_def / c_eval * 100), 1) if c_eval > 0 else 100.0
+            st = cdata.get("status")
+            if not st or st in ("pending", "completed"):
+                st = "FAIL" if c_vuln > 0 else ("PASS" if c_def > 0 else "UNASSESSED")
+            normalized[cid] = {
+                "id": cdata.get("id", cid),
+                "name": cdata.get("name", cid),
+                "icon": cdata.get("icon", "🛡️"),
+                "total_planned": c_tot,
+                "total": c_tot,
+                "tested": c_eval,
+                "completed": c_eval,
+                "passed": c_def,
+                "defended": c_def,
+                "failed": c_vuln,
+                "vulnerable": c_vuln,
+                "unassessed": c_unass,
+                "pass_rate": pass_rate,
+                "status": st
+            }
+        return normalized
+
     t_type = record.get("target_type", "openrouter").lower()
-    
+
     if t_type == "website":
         cats = [
             ("discovery", "Domain & Reachability", "🌐"),
@@ -201,28 +230,55 @@ def _synthesize_category_scores(record: Dict[str, Any], findings: list, positive
             ("harmful_content", "Harmful / Malicious Tasks", "🚫"),
             ("tool_abuse", "Tool Abuse & Agency Guardrails", "🛠️")
         ]
-        
-    tot_issues = len(findings)
-    tot_pos = len(positives)
+
+    counts = record.get("counts", {})
+    tot_vuln = record.get("breach_events_count", counts.get("total_breaches", len(findings)))
+    tot_def = record.get("defended_events_count", counts.get("defended_trials", len(positives)))
+    tot_unass = record.get("unassessed_events_count", counts.get("unassessed", len(record.get("unassessed_areas", []))))
+
+    num_cats = len(cats)
+    base_def = tot_def // num_cats
+    rem_def = tot_def % num_cats
+
+    base_unass = tot_unass // num_cats
+    rem_unass = tot_unass % num_cats
+
     res = {}
+    assigned_vuln = 0
+
     for idx, (cid, cname, icon) in enumerate(cats):
         f_in_cat = [f for f in findings if (isinstance(f, dict) and (cid in f.get("domain", "").lower() or any(w in f.get("title", "").lower() for w in cname.lower().split()[:2])))]
-        if not f_in_cat and idx == 0 and tot_issues > 0 and not any(isinstance(f, dict) and any(c[0] in f.get("domain", "").lower() for c in cats) for f in findings):
-            vuln = tot_issues
+        vuln = len(f_in_cat)
+        if idx == num_cats - 1:
+            vuln_here = max(vuln, tot_vuln - assigned_vuln)
         else:
-            vuln = len(f_in_cat)
-        passed = max(1, (tot_pos // len(cats))) if vuln == 0 else 0
-        tested = vuln + passed
-        pass_rate = round((passed / tested * 100), 1) if tested > 0 else 100.0
+            vuln_here = min(vuln, tot_vuln - assigned_vuln)
+        assigned_vuln += vuln_here
+
+        def_here = base_def + (1 if idx < rem_def else 0)
+        unass_here = base_unass + (1 if idx < rem_unass else 0)
+
+        tested = vuln_here + def_here
+        tot_plan = tested + unass_here
+        pass_rate = round((def_here / tested * 100), 1) if tested > 0 else 100.0
+
+        st = "FAIL" if vuln_here > 0 else ("PASS" if def_here > 0 else "UNASSESSED")
+
         res[cid] = {
             "id": cid,
             "name": cname,
             "icon": icon,
+            "total_planned": tot_plan,
+            "total": tot_plan,
             "tested": tested,
-            "passed": passed,
-            "failed": vuln,
+            "completed": tested,
+            "passed": def_here,
+            "defended": def_here,
+            "failed": vuln_here,
+            "vulnerable": vuln_here,
+            "unassessed": unass_here,
             "pass_rate": pass_rate,
-            "status": "PASS" if vuln == 0 else "FAIL"
+            "status": st
         }
     return res
 
@@ -260,10 +316,32 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     unassessed_cnt = counts.get("unassessed_or_blocked", counts.get("not_completed", counts.get("unassessed", len(unassessed))))
     na_cnt = counts.get("not_applicable", 0)
 
-    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", issues_cnt))
+    cat_scores = _synthesize_category_scores(record, findings, positives)
+    if cat_scores:
+        sum_cat_def = sum(c.get("defended", c.get("passed", 0)) for c in cat_scores.values())
+        sum_cat_vuln = sum(c.get("vulnerable", c.get("failed", 0)) for c in cat_scores.values())
+        sum_cat_unass = sum(c.get("unassessed", 0) for c in cat_scores.values())
+        if sum_cat_def + sum_cat_vuln + sum_cat_unass > 0:
+            clean_cnt = sum_cat_def
+            issues_cnt = sum_cat_vuln
+            unassessed_cnt = sum_cat_unass
+
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
     b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
     d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
     u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
+
+    if cat_scores and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
+        d_cnt = sum_cat_def
+        b_cnt = sum_cat_vuln
+        u_cnt = sum_cat_unass
+        clean_cnt = d_cnt
+        issues_cnt = b_cnt
+
+    if b_cnt == 0:
+        m_cnt = 0
+    elif m_cnt > b_cnt:
+        m_cnt = b_cnt
 
     # Derive Safety Score & Circuit Breaker if not directly on record
     score_label = record.get("score_label")
@@ -350,13 +428,18 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     if cat_scores:
         rows = []
         for cat_id, c in cat_scores.items():
-            st_color = "#16a34a" if c.get("status") == "PASS" else "#dc2626"
+            st_color = "#16a34a" if c.get("status") == "PASS" else ("#dc2626" if c.get("status") == "FAIL" else "#ea580c")
+            c_def = c.get('defended', c.get('passed', 0))
+            c_vuln = c.get('vulnerable', c.get('failed', 0))
+            c_unass = c.get('unassessed', 0)
+            c_eval = c.get('tested', c_def + c_vuln)
             rows.append(f"""
             <tr>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: 600;">{c.get('icon', '🛡️')} {sanitize(c.get('name', cat_id))}</td>
-                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center;">{c.get('tested', 0)}</td>
-                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #16a34a; font-weight: 600;">{c.get('passed', 0)}</td>
-                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #dc2626; font-weight: 600;">{c.get('failed', 0)}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center;">{c_eval}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #16a34a; font-weight: 600;">{c_def}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #dc2626; font-weight: 600;">{c_vuln}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #ea580c; font-weight: 600;">{c_unass}</td>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; font-weight: 700;">{c.get('pass_rate', 100.0)}%</td>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: {st_color}; font-weight: 800;">{c.get('status', 'PASS')}</td>
             </tr>
@@ -370,6 +453,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Evaluated</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Defended</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Breached</th>
+                    <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Unassessed</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Defense Rate</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Status</th>
                 </tr>
@@ -972,6 +1056,16 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     unassessed_cnt = counts.get("unassessed_or_blocked", counts.get("not_completed", counts.get("unassessed", len(unassessed))))
     na_cnt = counts.get("not_applicable", 0)
 
+    category_scores = _synthesize_category_scores(record, findings, positives)
+    if category_scores:
+        sum_cat_def = sum(c.get("defended", c.get("passed", 0)) for c in category_scores.values())
+        sum_cat_vuln = sum(c.get("vulnerable", c.get("failed", 0)) for c in category_scores.values())
+        sum_cat_unass = sum(c.get("unassessed", 0) for c in category_scores.values())
+        if sum_cat_def + sum_cat_vuln + sum_cat_unass > 0:
+            clean_cnt = sum_cat_def
+            issues_cnt = sum_cat_vuln
+            unassessed_cnt = sum_cat_unass
+
     # Derive Safety Score & Circuit Breaker if not directly on record
     score_label = record.get("score_label")
     if not score_label:
@@ -1076,10 +1170,22 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(Paragraph(f"<b>Executive Risk Determination:</b> {clean_pdf_text(verdict_explanation)}", ParagraphStyle('ExpStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=colors.HexColor('#1e293b'))))
     story.append(Spacer(1, 8))
 
-    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", issues_cnt))
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
     b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
     d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
     u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
+
+    if category_scores and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
+        d_cnt = sum_cat_def
+        b_cnt = sum_cat_vuln
+        u_cnt = sum_cat_unass
+        clean_cnt = d_cnt
+        issues_cnt = b_cnt
+
+    if b_cnt == 0:
+        m_cnt = 0
+    elif m_cnt > b_cnt:
+        m_cnt = b_cnt
 
     metric_cells = [
         [
@@ -1108,7 +1214,6 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(Spacer(1, 8))
 
     # Threat Category Defense Breakdown in PDF
-    category_scores = _synthesize_category_scores(record, findings, positives)
     if category_scores:
         story.append(Paragraph("Adversarial Threat Category Defense Breakdown", h2_style))
         cat_data = [[
@@ -1116,20 +1221,26 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             Paragraph("<b>Evaluated</b>", body_bold),
             Paragraph("<b>Defended</b>", body_bold),
             Paragraph("<b>Breached</b>", body_bold),
+            Paragraph("<b>Unassessed</b>", body_bold),
             Paragraph("<b>Defense Rate</b>", body_bold),
             Paragraph("<b>Status</b>", body_bold)
         ]]
         for cat_id, cat_info in category_scores.items():
-            st_color = "#16a34a" if cat_info.get("status") == "PASS" else "#dc2626"
+            st_color = "#16a34a" if cat_info.get("status") == "PASS" else ("#dc2626" if cat_info.get("status") == "FAIL" else "#ea580c")
+            c_def = cat_info.get('defended', cat_info.get('passed', 0))
+            c_vuln = cat_info.get('vulnerable', cat_info.get('failed', 0))
+            c_unass = cat_info.get('unassessed', 0)
+            c_eval = cat_info.get('tested', c_def + c_vuln)
             cat_data.append([
                 Paragraph(clean_pdf_text(cat_info.get("name", cat_id)), body_style),
-                Paragraph(str(cat_info.get("tested", 0)), body_style),
-                Paragraph(f"<font color='#16a34a'>{cat_info.get('passed', 0)}</font>", body_style),
-                Paragraph(f"<font color='#dc2626'>{cat_info.get('failed', 0)}</font>", body_style),
+                Paragraph(str(c_eval), body_style),
+                Paragraph(f"<font color='#16a34a'>{c_def}</font>", body_style),
+                Paragraph(f"<font color='#dc2626'>{c_vuln}</font>", body_style),
+                Paragraph(f"<font color='#ea580c'>{c_unass}</font>", body_style),
                 Paragraph(f"<b>{cat_info.get('pass_rate', 100.0)}%</b>", body_style),
                 Paragraph(f"<font color='{st_color}'><b>{cat_info.get('status', 'PASS')}</b></font>", body_style),
             ])
-        cat_table = Table(cat_data, colWidths=[185, 60, 65, 65, 75, 65])
+        cat_table = Table(cat_data, colWidths=[155, 55, 55, 55, 55, 70, 70])
         cat_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
             ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
