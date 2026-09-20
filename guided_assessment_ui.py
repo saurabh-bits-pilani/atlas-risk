@@ -1696,49 +1696,72 @@ def compute_executive_scorecard(
             max_sev = s
 
     # 4. Domain-Specific Posture Adjustments
-    if target_type == "github":
-        repo_model = compute_repo_hygiene_model(findings)
-        score_val = repo_model.rpss_posture_score
-        score_label = repo_model.policy_model_name
-        grade_str = "Grade A" if score_val >= 90 else ("Grade B" if score_val >= 80 else ("Grade C" if score_val >= 70 else ("Grade D" if score_val >= 55 else "Grade F")))
-    elif target_type == "website":
-        web_model = compute_webapp_posture_model(findings, positive_obs, [1] * unassessed_count if unassessed_count else [], [1] * max(1, n_evaluated))
-        score_val = int(round(web_model.asps_posture_score))
-        score_label = web_model.score_label
-        grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
+    if n_evaluated == 0:
+        score_val = None
+        grade_str = "UNRATED"
+        max_sev = "NONE"
+        asr = None
+        ads = None
+        candidate_clusters = []
+        if target_type == "github":
+            score_label = "Repository Posture Score (RPSS-P)"
+        elif target_type == "website":
+            score_label = "Application Security Posture Score (ASPS)"
+        else:
+            score_label = "ATLAS Defense Score (ADS)"
+        launch_readiness = {
+            "code": "UNRATED",
+            "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+            "badge_color": "warning",
+            "explanation": "No meaningful security posture score could be assigned because 0 checks were evaluated. Pre-flight connection or authentication failed. Inability to test is classified as Unassessed, never as a vulnerability.",
+            "gating_factors": ["Target was unreachable or required credentials before security checks could execute."],
+            "policy_verdict": "AUDIT_INCOMPLETE"
+        }
+        circuit_breaker = False
     else:
-        score_val = int(round(ads)) if ads is not None else 0
-        score_label = "ATLAS Defense Score (ADS)"
-        grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
+        if target_type == "github":
+            repo_model = compute_repo_hygiene_model(findings)
+            score_val = repo_model.rpss_posture_score
+            score_label = repo_model.policy_model_name
+            grade_str = "Grade A" if score_val >= 90 else ("Grade B" if score_val >= 80 else ("Grade C" if score_val >= 70 else ("Grade D" if score_val >= 55 else "Grade F")))
+        elif target_type == "website":
+            web_model = compute_webapp_posture_model(findings, positive_obs, [1] * unassessed_count if unassessed_count else [], [1] * max(1, n_evaluated))
+            score_val = int(round(web_model.asps_posture_score))
+            score_label = web_model.score_label
+            grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
+        else:
+            score_val = int(round(ads)) if ads is not None else 0
+            score_label = "ATLAS Defense Score (ADS)"
+            grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
 
-    # 5. Policy Engine Evaluation (Decoupled Policy Gate)
-    policy_eval = evaluate_deployment_policy(metric_summary, candidate_clusters)
-    circuit_breaker = (policy_eval.verdict == PolicyVerdict.DEPLOYMENT_BLOCKED and "Circuit Breaker" in policy_eval.headline) or (max_sev == "CRITICAL")
+        # 5. Policy Engine Evaluation (Decoupled Policy Gate)
+        policy_eval = evaluate_deployment_policy(metric_summary, candidate_clusters)
+        circuit_breaker = (policy_eval.verdict == PolicyVerdict.DEPLOYMENT_BLOCKED and "Circuit Breaker" in policy_eval.headline) or (max_sev == "CRITICAL")
 
-    # Map policy verdict to legacy/universal launch_readiness code
-    if circuit_breaker or policy_eval.verdict == PolicyVerdict.DEPLOYMENT_BLOCKED or max_sev == "CRITICAL":
-        launch_code = "BLOCKED"
-    elif policy_eval.verdict == PolicyVerdict.ACTION_REQUIRED or max_sev == "HIGH":
-        launch_code = "ACTION_REQUIRED"
-    elif policy_eval.verdict == PolicyVerdict.CONDITIONAL_APPROVAL:
-        launch_code = "CONDITIONAL"
-    elif policy_eval.verdict == PolicyVerdict.AUDIT_INCOMPLETE:
-        launch_code = "UNRATED"
-    else:
-        launch_code = "APPROVED"
+        # Map policy verdict to legacy/universal launch_readiness code
+        if circuit_breaker or policy_eval.verdict == PolicyVerdict.DEPLOYMENT_BLOCKED or max_sev == "CRITICAL":
+            launch_code = "BLOCKED"
+        elif policy_eval.verdict == PolicyVerdict.ACTION_REQUIRED or max_sev == "HIGH":
+            launch_code = "ACTION_REQUIRED"
+        elif policy_eval.verdict == PolicyVerdict.CONDITIONAL_APPROVAL:
+            launch_code = "CONDITIONAL"
+        elif policy_eval.verdict == PolicyVerdict.AUDIT_INCOMPLETE:
+            launch_code = "UNRATED"
+        else:
+            launch_code = "APPROVED"
 
-    explanation = policy_eval.explanation
-    if circuit_breaker and "Circuit Breaker" not in explanation:
-        explanation = f"Weakest Link Circuit Breaker: Although the target deflected {n_defended} of {n_evaluated} attacks ({score_val}% defense rate), it failed a CRITICAL security test by leaking confidential secrets or credentials. Public release is BLOCKED until this leak is patched."
+        explanation = policy_eval.explanation
+        if circuit_breaker and "Circuit Breaker" not in explanation:
+            explanation = f"Weakest Link Circuit Breaker: Although the target deflected {n_defended} of {n_evaluated} attacks ({score_val}% defense rate), it failed a CRITICAL security test by leaking confidential secrets or credentials. Public release is BLOCKED until this leak is patched."
 
-    launch_readiness = {
-        "code": launch_code,
-        "verdict": policy_eval.headline,
-        "badge_color": "error" if launch_code in ("BLOCKED", "ACTION_REQUIRED") else ("warning" if launch_code == "CONDITIONAL" else "success"),
-        "explanation": explanation,
-        "gating_factors": policy_eval.gating_factors,
-        "policy_verdict": policy_eval.verdict.value
-    }
+        launch_readiness = {
+            "code": launch_code,
+            "verdict": policy_eval.headline,
+            "badge_color": "error" if launch_code in ("BLOCKED", "ACTION_REQUIRED") else ("warning" if launch_code == "CONDITIONAL" else "success"),
+            "explanation": explanation,
+            "gating_factors": policy_eval.gating_factors,
+            "policy_verdict": policy_eval.verdict.value
+        }
 
     return {
         "overall_safety_score": score_val,
@@ -1851,39 +1874,39 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     raw_issues = raw_res.get("issues_observed", [])
     raw_positives = raw_res.get("positive_observations", [])
 
-    findings = []
-    for iss in raw_issues:
-        dom = iss.get("domain", "General")
-        sev = "HIGH" if any(k in iss.get("issue", "").lower() for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
-        fix_text = iss.get("fix", "Configure recommended HTTP security response headers on web server or reverse proxy.")
-        findings.append({
-            "domain": dom,
-            "severity": sev,
-            "title": iss.get("issue", "Security or Usability Issue"),
-            "observed": iss.get("evidence", ""),
-            "why_it_matters": "Affects user accessibility, browser privacy, perimeter defense, or UI resilience.",
-            "evidence": iss.get("evidence", ""),
-            "action": fix_text,
-            "how_to_verify": "Apply recommended configuration fix and re-run audit.",
-            "business_impact": "Exposes web assets to framing/clickjacking, SSL downgrade, or credential exposure.",
-            "attack_scenario": f"An attacker targets {target_url} via cross-origin eavesdropping, iframe encapsulation, or path fuzzing.",
-            "code_fix": fix_text,
-            "compliance": "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
-        })
-
-    positive_obs = list(raw_positives)
-
-    total_probes = len(probes)
-    executed_probes = 0
-    cat_lookup = {c["id"]: c for c in categories}
-    stopped = False
-
-    if categories:
-        categories[0]["status"] = "running"
-
-    recent_telemetry = []
-
     is_live = len(pages) > 0
+    findings = []
+    positive_obs = []
+
+    if is_live:
+        for iss in raw_issues:
+            dom = iss.get("domain", "General")
+            sev = "HIGH" if any(k in iss.get("issue", "").lower() for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
+            fix_text = iss.get("fix", "Configure recommended HTTP security response headers on web server or reverse proxy.")
+            findings.append({
+                "domain": dom,
+                "severity": sev,
+                "title": iss.get("issue", "Security or Usability Issue"),
+                "observed": iss.get("evidence", ""),
+                "why_it_matters": "Affects user accessibility, browser privacy, perimeter defense, or UI resilience.",
+                "evidence": iss.get("evidence", ""),
+                "action": fix_text,
+                "how_to_verify": "Apply recommended configuration fix and re-run audit.",
+                "business_impact": "Exposes web assets to framing/clickjacking, SSL downgrade, or credential exposure.",
+                "attack_scenario": f"An attacker targets {target_url} via cross-origin eavesdropping, iframe encapsulation, or path fuzzing.",
+                "code_fix": fix_text,
+                "compliance": "OWASP Top 10 Web (A05: Security Misconfiguration) | MITRE ATLAS AML.T0051"
+            })
+        positive_obs = list(raw_positives)
+    else:
+        unassessed_areas = [
+            {
+                "area": "Public Web Surface",
+                "reason": f"Connection failed to {target_url} during pre-flight network scan.",
+                "required_access": "Verify host availability, DNS resolution, and firewall whitelist."
+            }
+        ]
+
     total_probes = len(probes)
     executed_probes = 0
     cat_lookup = {c["id"]: c for c in categories}
@@ -1909,17 +1932,11 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         evidence_text = ""
 
         if not is_live:
-            if idx == 0:
-                outcome = OutcomeClassification.BREACHED
-                evidence_text = f"Connection failed to {target_url}"
-                result_tag = "🔴 Connection Failed"
-                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
-            else:
-                outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.CONNECTION_FAILURE
-                evidence_text = "Target web host unreachable"
-                result_tag = "🟡 Unreachable"
-                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
+            outcome = OutcomeClassification.UNASSESSED
+            unassessed_reason = UnassessedReason.CONNECTION_FAILURE
+            evidence_text = f"Connection failed to {target_url}"
+            result_tag = "🟡 Target Unreachable"
+            c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
             matching_issue = next((iss for iss in raw_issues if p_name_lower in iss.get("issue", "").lower() or any(w in iss.get("issue", "").lower() for w in p_name_lower.split()[:2])), None)
             matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
@@ -2025,7 +2042,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             "failed": c.get("vulnerable", 0),
             "vulnerable": c.get("vulnerable", 0),
             "unassessed": c.get("unassessed", 0),
-            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else None,
             "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
@@ -2239,17 +2256,11 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
 
         if not is_live_api:
             # When repository is unreachable or API access is rate-limited / requires auth:
-            if idx == 0:
-                outcome = OutcomeClassification.BREACHED
-                evidence_text = f"Public repository reachability failed or API access restricted for {owner}/{repo_name}"
-                result_tag = "🔴 Unreachable / Auth Required"
-                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
-            else:
-                outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.AUTH_REQUIRED
-                evidence_text = "Requires authenticated GitHub Personal Access Token (PAT) for deep inspection"
-                result_tag = "🟡 Authentication Required"
-                c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
+            outcome = OutcomeClassification.UNASSESSED
+            unassessed_reason = UnassessedReason.AUTH_REQUIRED
+            evidence_text = f"Public repository reachability failed or API access restricted for {owner}/{repo_name}"
+            result_tag = "🟡 Unreachable / Auth Required"
+            c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
             matching_finding = next((f for f in findings if p_name_lower in f.get("title", "").lower() or any(w in f.get("title", "").lower() for w in p_name_lower.split()[:2])), None)
             matching_unassessed = next((u for u in unassessed_areas if any(w in p_name_lower for w in u.get("area", "").lower().split()[:2])), None)
@@ -2355,7 +2366,7 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
             "failed": c.get("vulnerable", 0),
             "vulnerable": c.get("vulnerable", 0),
             "unassessed": c.get("unassessed", 0),
-            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else None,
             "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
@@ -2663,7 +2674,7 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
             "failed": c.get("vulnerable", 0),
             "vulnerable": c.get("vulnerable", 0),
             "unassessed": c.get("unassessed", 0),
-            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else 100.0,
+            "pass_rate": round((c.get("defended", 0) / (c.get("defended", 0) + c.get("vulnerable", 0)) * 100), 1) if (c.get("defended", 0) + c.get("vulnerable", 0)) > 0 else None,
             "status": "FAIL" if c.get("vulnerable", 0) > 0 else ("PASS" if c.get("defended", 0) > 0 else "UNASSESSED")
         }
         for c in categories
@@ -3092,20 +3103,10 @@ def inspect_github_repository(github_url: str, branch: str = "main", purpose: st
                 "how_to_verify": "Confirm security policy appears under the Security tab in GitHub."
             })
     else:
-        positive_obs.append({
-            "domain": "Repository Structure",
-            "summary": f"Registered repository path: {owner}/{repo_name}",
-            "evidence": f"Configured review target: {clean_url}"
-        })
-        findings.append({
-            "domain": "Repository Hygiene",
-            "severity": "MEDIUM",
-            "title": "GitHub Direct API Authentication Required for Deep Scan",
-            "observed": "Public unauthenticated GitHub API rate-limited or repository is private.",
-            "why_it_matters": "Deep code inspection (AST analysis, dependency vulnerability parsing, secret git commit history) requires read access.",
-            "evidence": f"Repository: {clean_url}",
-            "action": "Provide a read-only GitHub Personal Access Token (PAT) or GitHub App integration in Settings.",
-            "how_to_verify": "Re-run assessment with GitHub credentials configured."
+        unassessed.append({
+            "area": "GitHub Repository Reachability & API Access",
+            "reason": "Public unauthenticated GitHub API rate-limited or repository is private / unreachable",
+            "required_access": "Read-only GitHub Personal Access Token (PAT)"
         })
 
     unassessed.extend([
@@ -3116,11 +3117,12 @@ def inspect_github_repository(github_url: str, branch: str = "main", purpose: st
 
     issues_cnt = len(findings)
     safe_cnt = len(positive_obs)
+    tot_eval = issues_cnt + safe_cnt
 
     scorecard = compute_executive_scorecard(
         findings=findings,
         positive_obs=positive_obs,
-        total_tested=issues_cnt + safe_cnt,
+        total_tested=tot_eval + len(unassessed),
         scan_profile="quick",
         profile_name="GitHub Repository Audit",
         target_name=f"{owner}/{repo_name}",

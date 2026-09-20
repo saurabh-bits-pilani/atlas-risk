@@ -132,11 +132,24 @@ def _normalize_target_meta(record: Dict[str, Any]) -> Dict[str, str]:
 
 
 def _normalize_launch_readiness(launch_rd: Any, max_sev: str = "NONE", safety_score: int = 100, clean_cnt: int = 0, tot: int = 0) -> Dict[str, str]:
+    if tot == 0 or (isinstance(launch_rd, dict) and launch_rd.get("code") == "UNRATED"):
+        return {
+            "code": "UNRATED",
+            "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+            "explanation": "Target could not be reached or zero security checks were evaluated. No security certification granted."
+        }
     if isinstance(launch_rd, dict) and "code" in launch_rd and "verdict" in launch_rd:
         return launch_rd
     
     code_str = str(launch_rd or "").upper()
     max_sev_str = str(max_sev or "").upper()
+    
+    if "UNRATED" in code_str:
+        return {
+            "code": "UNRATED",
+            "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+            "explanation": "Target could not be reached or zero security checks were evaluated. No security certification granted."
+        }
     
     if "BLOCK" in code_str or max_sev_str == "CRITICAL":
         return {
@@ -176,10 +189,14 @@ def _synthesize_category_scores(record: Dict[str, Any], findings: list, positive
             c_unass = cdata.get("unassessed", 0)
             c_eval = cdata.get("tested", cdata.get("completed", c_def + c_vuln))
             c_tot = cdata.get("total_planned", cdata.get("total", c_eval + c_unass))
-            pass_rate = round((c_def / c_eval * 100), 1) if c_eval > 0 else 100.0
-            st = cdata.get("status")
-            if not st or st in ("pending", "completed"):
-                st = "FAIL" if c_vuln > 0 else ("PASS" if c_def > 0 else "UNASSESSED")
+            if c_eval == 0:
+                pass_rate = None
+                st = "UNASSESSED"
+            else:
+                pass_rate = round((c_def / c_eval * 100), 1)
+                st = cdata.get("status")
+                if not st or st in ("pending", "completed"):
+                    st = "FAIL" if c_vuln > 0 else "PASS"
             normalized[cid] = {
                 "id": cdata.get("id", cid),
                 "name": cdata.get("name", cid),
@@ -262,9 +279,12 @@ def _synthesize_category_scores(record: Dict[str, Any], findings: list, positive
 
         tested = vuln_here + def_here
         tot_plan = tested + unass_here
-        pass_rate = round((def_here / tested * 100), 1) if tested > 0 else 100.0
-
-        st = "FAIL" if vuln_here > 0 else ("PASS" if def_here > 0 else "UNASSESSED")
+        if tested == 0:
+            pass_rate = None
+            st = "UNASSESSED"
+        else:
+            pass_rate = round((def_here / tested * 100), 1)
+            st = "FAIL" if vuln_here > 0 else "PASS"
 
         res[cid] = {
             "id": cid,
@@ -362,7 +382,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     circuit_breaker = record.get("circuit_breaker_triggered", False)
     launch_rd = record.get("launch_readiness")
 
-    if safety_score is None:
+    if safety_score is None or (issues_cnt + clean_cnt) == 0:
         if status == "FAILED_CONNECTIVITY" or (issues_cnt + clean_cnt) == 0:
             safety_score = None
             safety_grade = "UNRATED"
@@ -370,8 +390,8 @@ def generate_html_report(record: Dict[str, Any]) -> str:
             circuit_breaker = False
             launch_rd = {
                 "code": "UNRATED",
-                "verdict": "AUDIT INCOMPLETE (Target Unreachable)",
-                "explanation": "Pre-flight connection failed before security probes could execute."
+                "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+                "explanation": "Target could not be reached or zero security checks were evaluated."
             }
         else:
             tot = issues_cnt + clean_cnt
@@ -430,11 +450,19 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     if cat_scores:
         rows = []
         for cat_id, c in cat_scores.items():
-            st_color = "#16a34a" if c.get("status") == "PASS" else ("#dc2626" if c.get("status") == "FAIL" else "#ea580c")
             c_def = c.get('defended', c.get('passed', 0))
             c_vuln = c.get('vulnerable', c.get('failed', 0))
             c_unass = c.get('unassessed', 0)
             c_eval = c.get('tested', c_def + c_vuln)
+            c_rate = c.get('pass_rate')
+            if c_eval == 0 or c_rate is None:
+                rate_str = '<span style="color: #64748b; font-weight: 600;">N/A</span>'
+                st_color = "#64748b"
+                st_label = c.get('status', 'UNASSESSED')
+            else:
+                rate_str = f"{c_rate}%"
+                st_color = "#16a34a" if c.get("status") == "PASS" else ("#dc2626" if c.get("status") == "FAIL" else "#ea580c")
+                st_label = c.get('status', 'PASS')
             rows.append(f"""
             <tr>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: 600;">{c.get('icon', '🛡️')} {sanitize(c.get('name', cat_id))}</td>
@@ -442,8 +470,8 @@ def generate_html_report(record: Dict[str, Any]) -> str:
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #16a34a; font-weight: 600;">{c_def}</td>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #dc2626; font-weight: 600;">{c_vuln}</td>
                 <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: #ea580c; font-weight: 600;">{c_unass}</td>
-                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; font-weight: 700;">{c.get('pass_rate', 100.0)}%</td>
-                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: {st_color}; font-weight: 800;">{c.get('status', 'PASS')}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; font-weight: 700;">{rate_str}</td>
+                <td style="padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; color: {st_color}; font-weight: 800;">{st_label}</td>
             </tr>
             """)
         cat_table_html = f"""
@@ -512,7 +540,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
             </div>
             """)
     elif not findings:
-        findings_html.append("<div class='empty-note'>No issues observed within the tested scope.</div>")
+        findings_html.append("<div class='empty-note'>No vulnerability findings detected within evaluated scope.</div>")
     else:
         for idx, f in enumerate(findings, 1):
             if not isinstance(f, dict):
@@ -1085,7 +1113,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     circuit_breaker = record.get("circuit_breaker_triggered", False)
     launch_rd = record.get("launch_readiness")
 
-    if safety_score is None:
+    if safety_score is None or (issues_cnt + clean_cnt) == 0:
         if status == "FAILED_CONNECTIVITY" or (issues_cnt + clean_cnt) == 0:
             safety_score = None
             safety_grade = "UNRATED"
@@ -1093,8 +1121,8 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             circuit_breaker = False
             launch_rd = {
                 "code": "UNRATED",
-                "verdict": "AUDIT INCOMPLETE (Target Unreachable)",
-                "explanation": "Pre-flight connection failed before security probes could execute."
+                "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+                "explanation": "Target could not be reached or zero security checks were evaluated."
             }
         else:
             tot = issues_cnt + clean_cnt
@@ -1228,19 +1256,27 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             Paragraph("<b>Status</b>", body_bold)
         ]]
         for cat_id, cat_info in category_scores.items():
-            st_color = "#16a34a" if cat_info.get("status") == "PASS" else ("#dc2626" if cat_info.get("status") == "FAIL" else "#ea580c")
             c_def = cat_info.get('defended', cat_info.get('passed', 0))
             c_vuln = cat_info.get('vulnerable', cat_info.get('failed', 0))
             c_unass = cat_info.get('unassessed', 0)
             c_eval = cat_info.get('tested', c_def + c_vuln)
+            c_rate = cat_info.get('pass_rate')
+            if c_eval == 0 or c_rate is None:
+                rate_para = Paragraph("<font color='#64748b'><b>N/A</b></font>", body_style)
+                st_color = "#64748b"
+                st_text = cat_info.get('status', 'UNASSESSED')
+            else:
+                rate_para = Paragraph(f"<b>{c_rate}%</b>", body_style)
+                st_color = "#16a34a" if cat_info.get("status") == "PASS" else ("#dc2626" if cat_info.get("status") == "FAIL" else "#ea580c")
+                st_text = cat_info.get('status', 'PASS')
             cat_data.append([
                 Paragraph(clean_pdf_text(cat_info.get("name", cat_id)), body_style),
                 Paragraph(str(c_eval), body_style),
                 Paragraph(f"<font color='#16a34a'>{c_def}</font>", body_style),
                 Paragraph(f"<font color='#dc2626'>{c_vuln}</font>", body_style),
                 Paragraph(f"<font color='#ea580c'>{c_unass}</font>", body_style),
-                Paragraph(f"<b>{cat_info.get('pass_rate', 100.0)}%</b>", body_style),
-                Paragraph(f"<font color='{st_color}'><b>{cat_info.get('status', 'PASS')}</b></font>", body_style),
+                rate_para,
+                Paragraph(f"<font color='{st_color}'><b>{st_text}</b></font>", body_style),
             ])
         cat_table = Table(cat_data, colWidths=[155, 55, 55, 55, 55, 70, 70])
         cat_table.setStyle(TableStyle([
@@ -1362,7 +1398,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     else:
         story.append(Paragraph("2. Issues Observed & Practical Remediations", h2_style))
         if not findings:
-            story.append(Paragraph("No security or quality defects were observed within the tested scope.", body_style))
+            story.append(Paragraph("No vulnerability findings detected within evaluated scope.", body_style))
         else:
             for idx, f in enumerate(findings, 1):
                 if not isinstance(f, dict):

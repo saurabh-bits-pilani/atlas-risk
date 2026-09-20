@@ -189,7 +189,7 @@ def test_unassessed_scenario_consistency():
             "failed": 0,
             "vulnerable": 0,
             "unassessed": 5,
-            "pass_rate": 100.0,
+            "pass_rate": None,
             "status": "UNASSESSED"
         },
         "secret_hygiene": {
@@ -203,7 +203,7 @@ def test_unassessed_scenario_consistency():
             "failed": 0,
             "vulnerable": 0,
             "unassessed": 5,
-            "pass_rate": 100.0,
+            "pass_rate": None,
             "status": "UNASSESSED"
         },
         "prompt_defense": {
@@ -217,7 +217,7 @@ def test_unassessed_scenario_consistency():
             "failed": 0,
             "vulnerable": 0,
             "unassessed": 5,
-            "pass_rate": 100.0,
+            "pass_rate": None,
             "status": "UNASSESSED"
         },
         "dependency_posture": {
@@ -231,7 +231,7 @@ def test_unassessed_scenario_consistency():
             "failed": 0,
             "vulnerable": 0,
             "unassessed": 5,
-            "pass_rate": 100.0,
+            "pass_rate": None,
             "status": "UNASSESSED"
         }
     }
@@ -320,3 +320,87 @@ def test_synthesize_category_scores_preserves_sums():
     assert sum_vuln == 7, f"Expected 7 breached, got {sum_vuln}"
     assert sum_unass == 4, f"Expected 4 unassessed, got {sum_unass}"
     assert sum_def + sum_vuln + sum_unass == 34, "Total planned invariant preserved"
+
+
+def test_unreachable_target_zero_breaches_and_na_defense_rates():
+    """Verify that connection failure produces 0 breaches, 0 findings, N/A score, and N/A defense rates."""
+    cat_scores = {
+        f"cat_{i}": {
+            "id": f"cat_{i}",
+            "name": f"Category {i}",
+            "icon": "🛡️",
+            "total_planned": 5,
+            "tested": 0,
+            "passed": 0,
+            "defended": 0,
+            "failed": 0,
+            "vulnerable": 0,
+            "unassessed": 5,
+            "pass_rate": None,
+            "status": "UNASSESSED"
+        }
+        for i in range(1, 6)
+    }
+
+    record = {
+        "id": "ASM-TEST-HUME-UNREACHABLE",
+        "name": "Web App Audit: https://www.hume.ai/",
+        "target_type": "website",
+        "target_input": "https://www.hume.ai/",
+        "scan_profile": "quick",
+        "overall_safety_score": None,
+        "score_label": "Application Security Posture Score (ASPS)",
+        "safety_grade": "UNRATED",
+        "max_severity_found": "NONE",
+        "circuit_breaker_triggered": False,
+        "launch_readiness": {
+            "code": "UNRATED",
+            "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+            "explanation": "Target could not be reached or zero security checks were evaluated."
+        },
+        "attack_success_rate": None,
+        "assessment_completeness": 0.0,
+        "category_scores": cat_scores,
+        "total_prompts_tested": 0,
+        "total_prompts_planned": 25,
+        "execution_duration_sec": 0.5,
+        "status": "FAILED_CONNECTIVITY",
+        "summary": "Target endpoint could not be reached. 25 checks unassessed.",
+        "counts": {
+            "unique_findings": 0,
+            "issues": 0,
+            "total_breaches": 0,
+            "defended_trials": 0,
+            "no_issue": 0,
+            "unassessed": 25,
+            "not_completed": 25,
+            "evaluated_trials": 0,
+            "total_prompts_tested": 0,
+            "total_prompts_planned": 25,
+            "not_applicable": 0
+        },
+        "unique_findings_count": 0,
+        "breach_events_count": 0,
+        "defended_events_count": 0,
+        "unassessed_events_count": 25,
+        "findings": [],
+        "positive_observations": [],
+        "candidate_clusters": [],
+        "unassessed_areas": ["Connection failed to https://www.hume.ai/"]
+    }
+
+    html_content = generate_html_report(record)
+
+    # Invariants verification
+    assert ">0</div>\n        <div class=\"count-lbl\">Defended Trials (D)</div>" in html_content
+    assert "(0 Breaches)" in html_content
+    assert ">0</div>\n        <div class=\"count-lbl\">Unique Findings (M)</div>" in html_content
+    assert ">25</div>\n        <div class=\"count-lbl\">Unassessed / Throttled (U)</div>" in html_content
+    assert "N/A" in html_content  # Defense rate column displays N/A
+    assert "UNRATED" in html_content
+    assert "AUDIT INCOMPLETE" in html_content
+
+    pdf_path, _ = export_assessment_pdf_and_html(record)
+    assert os.path.exists(pdf_path)
+    assert os.path.getsize(pdf_path) > 1000
+

@@ -180,12 +180,15 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
     # Top Metric Scorecard (Formal Decoupled Metrics)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        if status == "FAILED_CONNECTIVITY":
-            st.metric(score_label, "UNRATED", delta="Pre-flight Halt", delta_color="off")
+        if status == "FAILED_CONNECTIVITY" or safety_score is None or tested_probes == 0:
+            st.metric(score_label, "N/A", delta=safety_grade or "UNRATED", delta_color="off")
         else:
             st.metric(score_label, f"{safety_score} / 100", delta=safety_grade, delta_color="normal" if safety_score >= 70 else "inverse")
     with c2:
-        st.metric("Attack Success Rate (ASR)", f"{asr}%", delta=f"{breach_events_cnt} Breaches", delta_color="inverse" if asr > 0 else "normal")
+        if tested_probes == 0 or asr is None:
+            st.metric("Attack Success Rate (ASR)", "N/A", delta="0 Breaches", delta_color="off")
+        else:
+            st.metric("Attack Success Rate (ASR)", f"{asr}%", delta=f"{breach_events_cnt} Breaches", delta_color="inverse" if asr > 0 else "normal")
     with c3:
         st.metric("Assessment Completeness (AC)", f"{ac_val}%", delta=f"{unassessed_cnt} Throttled/Unassessed" if unassessed_cnt > 0 else "100% Evaluated", delta_color="normal" if ac_val >= 80 else "inverse")
     with c4:
@@ -278,11 +281,16 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                     c_def = c_data.get("defended", c_data.get("passed", 0))
                     c_vuln = c_data.get("vulnerable", c_data.get("failed", 0))
                     c_unass = c_data.get("unassessed", 0)
-                    resilience_pct = round((c_def / c_comp * 100), 1) if c_comp > 0 else 100.0
-
-                    card_bg = "#f0fdf4" if c_vuln == 0 else "#fef2f2"
-                    card_border = "#bbf7d0" if c_vuln == 0 else "#fca5a5"
-                    res_color = "#16a34a" if c_vuln == 0 else "#dc2626"
+                    if c_comp > 0:
+                        resilience_pct = f"{round((c_def / c_comp * 100), 1)}%"
+                        card_bg = "#f0fdf4" if c_vuln == 0 else "#fef2f2"
+                        card_border = "#bbf7d0" if c_vuln == 0 else "#fca5a5"
+                        res_color = "#16a34a" if c_vuln == 0 else "#dc2626"
+                    else:
+                        resilience_pct = "N/A"
+                        card_bg = "#f8fafc"
+                        card_border = "#e2e8f0"
+                        res_color = "#64748b"
                     unass_str = f" | ⚠️ {c_unass} Unassessed" if c_unass > 0 else ""
 
                     st.markdown(f"""
@@ -292,7 +300,7 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                         </div>
                         <div style="font-size: 11px; color: #64748b; margin-top: 2px;">{c_data.get('atlas_id', '')}</div>
                         <div style="font-size: 20px; font-weight: 800; color: {res_color}; margin-top: 6px;">
-                            {resilience_pct}%
+                            {resilience_pct}
                         </div>
                         <div style="font-size: 11px; color: #475569; margin-top: 2px;">
                             🛡️ {c_def} Defended | 🚨 {c_vuln} Vuln{unass_str}
