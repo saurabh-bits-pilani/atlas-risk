@@ -429,12 +429,28 @@ def render_assessment_results(record: dict, show_back_button: bool = False):
                 aspect = p.get('aspect', p.get('area', 'Security Control'))
                 summary_obs = p.get('summary', p.get('observation', ''))
                 pv = p.get('practical_value', '')
-                st.markdown(f"• **[{aspect}]** {summary_obs}")
-                if pv:
-                    st.markdown(f"  - 💼 **Business Value:** *{pv}*")
-                st.markdown(f"  - 🔍 *Evidence:* `{p.get('evidence', '')}`")
+                def_mech = p.get('defense_mechanism')
+                tag = f" — `{def_mech}`" if def_mech else ""
+                with st.expander(f"🛡️ **[{aspect}]** {summary_obs}{tag}", expanded=False):
+                    if pv:
+                        st.markdown(f"💼 **Practical Business Value:** *{pv}*")
+                    evid_text = p.get('evidence', '')
+                    if evid_text:
+                        st.markdown(f"🔍 **Observed Defense Evidence:**\n```text\n{evid_text}\n```")
+                    raw_r = p.get('raw_response')
+                    if raw_r and raw_r != evid_text:
+                        st.caption("Verbatim Model Output:")
+                        st.code(raw_r, language="text")
         else:
             st.caption("No positive observations recorded.")
+
+        insights = record.get("behavioral_insights", [])
+        if insights:
+            st.markdown("---")
+            st.markdown("### 💡 Behavioral Telemetry & Defense Insights (Non-Breach Observations)")
+            st.caption("Interesting model behaviors, refusal styles, and boundary markers that are not vulnerabilities:")
+            for b in insights:
+                st.info(f"🛡️ **{b.get('probe_name')}** (`{b.get('defense_type')}`):\n\n*{b.get('observation')}*\n\n> *\"{b.get('evidence_quote')}\"*")
 
         st.markdown("---")
         st.markdown("### 📋 What We Could Not Assess & Required Access")
@@ -517,5 +533,24 @@ python -m garak --model_type ollama --model_name {clean_model_slug} \\
     with tab_tech:
         st.markdown("### ⚙️ Technical Metadata & Raw Audit Logs")
         st.caption("Detailed taxonomy mappings, raw response headers, and completion metadata for security auditors and engineers:")
+
+        trials = record.get("execution_trials", [])
+        if trials:
+            st.markdown("#### 🔬 Full Trial-by-Trial Audit Lineage")
+            st.caption(f"Verbatim record of all {len(trials)} executed adversarial trials:")
+            for t in trials:
+                t_out = t.get("outcome", "DEFENDED")
+                t_icon = "🔴" if t_out == "BREACHED" else "🟢"
+                t_status = t.get("http_status", 200)
+                t_ms = t.get("latency_ms", 0)
+                t_title = f"{t_icon} Trial `{t.get('trial_id')}`: {t.get('probe_name')} [{t.get('mitre_atlas_id')}] — {t_out} (HTTP {t_status}, {t_ms}ms)"
+                with st.expander(t_title, expanded=False):
+                    st.markdown("**📤 Prompt Sent to AI:**")
+                    st.code(t.get("prompt_sent", ""), language="text")
+                    st.markdown("**📥 Verbatim AI Response:**")
+                    st.code(t.get("model_response", ""), language="text")
+                    st.caption(f"**Classification & Notes:** {t.get('observation_notes', '')}")
+
+        st.markdown("#### 📄 Complete Raw Assessment JSON Record")
         st.json(record)
 
