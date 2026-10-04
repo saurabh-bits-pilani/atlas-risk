@@ -20,6 +20,13 @@ from engines.public_app_inspector import PublicAppInspector
 from engines.assessment_store import AssessmentStore
 from engines.evidence_lineage import ExecutionTrial, OutcomeClassification, UnassessedReason, ClassificationMethod, DetectorProvenance
 from assessment_results_view import render_assessment_results
+
+
+def _safe_unassessed_reason(name: str):
+    """Safely obtain UnassessedReason enum member or fallback string if stale module cache."""
+    return getattr(UnassessedReason, name, name)
+
+
 from engines.garak_engine import GarakUnifiedEngine, DEFAULT_CANARY_SECRET, AUDIT_PROFILES, PROBE_CATEGORIES
 from local_ai_testing_ui import LOCAL_TEST_CATALOGUE, SYNTHETIC_SECRET
 from engines.openrouter_catalog import (
@@ -1984,7 +1991,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
         if not is_live:
             outcome = OutcomeClassification.UNASSESSED
-            unassessed_reason = UnassessedReason.CONNECTION_FAILURE
+            unassessed_reason = _safe_unassessed_reason("CONNECTION_FAILURE")
             evidence_text = f"Connection failed to {target_url}"
             result_tag = "🟡 Target Unreachable"
             c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2042,7 +2049,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
                 c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
             elif matching_unassessed:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.AUTH_REQUIRED
+                unassessed_reason = _safe_unassessed_reason("AUTH_REQUIRED")
                 evidence_text = matching_unassessed.get("reason", "Authentication required")
                 result_tag = "🟡 Login Required"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2063,7 +2070,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
                 c_obj["defended"] = c_obj.get("defended", 0) + 1
             else:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.MODULE_NOT_RUN
+                unassessed_reason = _safe_unassessed_reason("MODULE_NOT_RUN")
                 evidence_text = f"Surface check not executed in this profile: {p['name']}"
                 result_tag = "🟡 Not Executed"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2388,12 +2395,12 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
             # Gating invariant: Failed reachability gates all downstream checks
             if is_reachability_probe:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.CONNECTION_FAILURE
+                unassessed_reason = _safe_unassessed_reason("CONNECTION_FAILURE")
                 evidence_text = f"Public repository reachability failed or unauthenticated API rate-limited for {owner}/{repo_name}"
                 result_tag = "🟡 Unreachable / API Limit"
             else:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.PREREQUISITE_FAILED
+                unassessed_reason = _safe_unassessed_reason("PREREQUISITE_FAILED")
                 evidence_text = f"Check skipped: upstream repository reachability prerequisite failed"
                 result_tag = "🟡 Prerequisite Failed"
             c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2430,7 +2437,7 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
                     c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
                 elif sec_unass:
                     outcome = OutcomeClassification.UNASSESSED
-                    unassessed_reason = UnassessedReason.EXECUTION_ERROR
+                    unassessed_reason = _safe_unassessed_reason("EXECUTION_ERROR")
                     evidence_text = sec_unass.get("reason", "Contents API error while verifying SECURITY.md")
                     result_tag = "🟡 API Error"
                     c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2442,28 +2449,28 @@ def run_staged_github_audit(inp: dict, journey_container, status_container, stop
             # Declared Boundary 1: Git Commit History
             elif is_commit_probe:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.SCOPE_RESTRICTED
+                unassessed_reason = _safe_unassessed_reason("SCOPE_RESTRICTED")
                 evidence_text = "Declared Scope Boundary: Commit history & commit signing require cloned git objects."
                 result_tag = "🟡 Boundary: Git History"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
             # Declared Boundary 2: Dependency Lockfile Resolution
             elif is_dep_probe:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.SCOPE_RESTRICTED
+                unassessed_reason = _safe_unassessed_reason("SCOPE_RESTRICTED")
                 evidence_text = "Declared Scope Boundary: Dependency CVE resolution requires lockfile contents & manifest graph."
                 result_tag = "🟡 Boundary: Dependencies"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
             # Declared Boundary 3: Branch Protection & Push Scanning
             elif is_branch_rule_probe:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.AUTH_REQUIRED
+                unassessed_reason = _safe_unassessed_reason("AUTH_REQUIRED")
                 evidence_text = "Declared Scope Boundary: Branch protection and secret push-protection require repository admin OAuth privileges."
                 result_tag = "🟡 Boundary: Admin Rules"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
             # Unassessed Phantoms (All remaining probes requiring AST code scanning)
             else:
                 outcome = OutcomeClassification.UNASSESSED
-                unassessed_reason = UnassessedReason.MODULE_NOT_RUN
+                unassessed_reason = _safe_unassessed_reason("MODULE_NOT_RUN")
                 evidence_text = f"Source code AST scanning not conducted: '{p['name']}' not evaluated in unauthenticated surface audit."
                 result_tag = "🟡 AST Not Scanned"
                 c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
@@ -2772,13 +2779,13 @@ def run_staged_questionnaire_audit(inp: dict, journey_container, status_containe
             c_obj["defended"] = c_obj.get("defended", 0) + 1
         elif matching_unassessed:
             outcome = OutcomeClassification.UNASSESSED
-            unassessed_reason = UnassessedReason.SCOPE_RESTRICTED
+            unassessed_reason = _safe_unassessed_reason("SCOPE_RESTRICTED")
             evidence_text = matching_unassessed.get("reason", "Question skipped")
             result_tag = "🟡 Unanswered"
             c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1
         else:
             outcome = OutcomeClassification.UNASSESSED
-            unassessed_reason = UnassessedReason.MODULE_NOT_RUN
+            unassessed_reason = _safe_unassessed_reason("MODULE_NOT_RUN")
             evidence_text = f"Architecture check not evaluated in this profile: {p['name']}"
             result_tag = "🟡 Not Evaluated"
             c_obj["unassessed"] = c_obj.get("unassessed", 0) + 1

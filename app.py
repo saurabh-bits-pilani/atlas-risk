@@ -16,16 +16,25 @@ import json
 from datetime import datetime, timezone
 
 import importlib
+import engines.evidence_lineage
+import engines.domain_models
+import engines.garak_engine
+import engines.finding_clusterer
+import engines.public_app_inspector
+import engines.report_exporter
+importlib.reload(engines.evidence_lineage)
+importlib.reload(engines.domain_models)
+importlib.reload(engines.garak_engine)
+importlib.reload(engines.finding_clusterer)
+importlib.reload(engines.public_app_inspector)
+importlib.reload(engines.report_exporter)
+
 import guided_assessment_ui
 import home_view
 import assessment_results_view
-import engines.report_exporter
-import engines.public_app_inspector
 importlib.reload(guided_assessment_ui)
 importlib.reload(home_view)
 importlib.reload(assessment_results_view)
-importlib.reload(engines.report_exporter)
-importlib.reload(engines.public_app_inspector)
 
 from guided_assessment_ui import render_guided_assessment_wizard
 from assessment_results_view import render_assessment_results

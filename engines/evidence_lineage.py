@@ -175,9 +175,9 @@ class ExecutionTrial:
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
-        data["outcome_classification"] = self.outcome_classification.value
-        data["unassessed_reason"] = self.unassessed_reason.value if self.unassessed_reason else None
-        data["classification_method"] = self.classification_method.value if self.classification_method else None
+        data["outcome_classification"] = self.outcome_classification.value if hasattr(self.outcome_classification, "value") else str(self.outcome_classification)
+        data["unassessed_reason"] = self.unassessed_reason.value if hasattr(self.unassessed_reason, "value") else (str(self.unassessed_reason) if self.unassessed_reason is not None else None)
+        data["classification_method"] = self.classification_method.value if hasattr(self.classification_method, "value") else (str(self.classification_method) if self.classification_method is not None else None)
         return data
 
 
