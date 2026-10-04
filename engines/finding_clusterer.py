@@ -172,11 +172,14 @@ def cluster_trials_into_findings(
         if is_web:
             asset = "WEB_HTTP_SURFACE_AND_HEADERS"
             impact = "BROWSER_CLIENT_SECURITY_REDUCTION"
-            atlas_id = "AML.T0051"
+            if ev_sig == "WEB:EXPOSED_ENV_SECRETS":
+                atlas_id = "AML.T0055"  # Unsecured Credentials (official MITRE ATLAS v5.6.0)
+            else:
+                atlas_id = "N/A (Web Surface)"
         else:
             asset = ac.target_asset if ac else "SYSTEM_DIRECTIVE_AND_CREDENTIALS"
             impact = ac.intended_impact if ac else "CONFIDENTIALITY_AND_INTEGRITY_BREACH"
-            atlas_id = getattr(ac, "mitre_atlas_technique", "AML.T0058") if ac else "AML.T0058"
+            atlas_id = getattr(ac, "mitre_atlas_technique", "AML.T0054") if ac else "AML.T0054"
 
         key = f"{asset}|{impact}|{atlas_id}|{ev_sig}"
         if key not in candidate_map:

@@ -9,10 +9,124 @@ Provides domain-separated scoring engines:
 Avoids the catastrophic distortion of applying a stochastic LLM ratio to static repository governance.
 """
 
+from enum import Enum
 from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, List, Optional
-from engines.evidence_lineage import ExecutionTrial, ProbeFamily
+from typing import Dict, Any, List, Optional, Tuple
+from engines.evidence_lineage import ExecutionTrial, ProbeFamily, OutcomeClassification
 from engines.metric_engine import MetricSummary, compute_trial_metrics
+
+
+class CheckCategory(str, Enum):
+    SECURITY = "SECURITY"
+    HYGIENE = "HYGIENE"
+    INFORMATIONAL = "INFORMATIONAL"
+    BENIGN_CONTROL = "BENIGN_CONTROL"
+    QUALITY_USABILITY = "QUALITY_USABILITY"
+
+
+class TargetCapability(str, Enum):
+    WEB_SURFACE = "WEB_SURFACE"
+    GIT_METADATA = "GIT_METADATA"
+    AI_MODEL = "AI_MODEL"
+
+
+@dataclass(frozen=True)
+class CheckDefinition:
+    check_id: str
+    category: CheckCategory
+    required_capabilities: Tuple[TargetCapability, ...]
+    score_eligible: bool       # True ONLY for security controls and scored hygiene
+    weight: float              # 1.0 (standard), 2.0 (critical controls)
+    prerequisites: Tuple[str, ...] = ()
+    description: str = ""
+
+
+# Documented Project Scoring Rubric
+# Note: Partial credit values reflect the documented project scoring rubric, not an external standard.
+PROJECT_SCORING_RUBRIC = {
+    # Strict Binary Controls (Weight 1.0; Defended = 1.0, Deficiency = 0.0, Breach = 0.0)
+    "WEB:MISSING_CSP": {"weight": 1.0, "defended": 1.0, "partial": 0.5, "absent": 0.0},
+    "WEB:MISSING_HSTS": {"weight": 1.0, "defended": 1.0, "partial": 0.5, "absent": 0.0},
+    "WEB:MISSING_CONTENT_TYPE_OPTIONS": {"weight": 1.0, "defended": 1.0, "partial": 0.0, "absent": 0.0},
+    "WEB:MISSING_FRAME_PROTECTION": {"weight": 1.0, "defended": 1.0, "partial": 0.5, "absent": 0.0},
+    # Contextual & Cookie Controls
+    "WEB:INSECURE_COOKIES": {"weight": 1.0, "defended": 1.0, "partial": 0.5, "absent": 0.0},
+    "WEB:MISSING_REFERRER_POLICY": {"weight": 1.0, "defended": 1.0, "partial": 0.5, "absent": 0.0},
+    "WEB:EXPOSED_ENV_SECRETS": {"weight": 2.0, "defended": 2.0, "partial": 0.0, "absent": 0.0},
+    "WEB:CLEARTEXT_DATA_TRANSMISSION": {"weight": 1.5, "defended": 1.5, "partial": 0.0, "absent": 0.0},
+    # GitHub Scored Controls
+    "GH:SECURITY_POLICY": {"weight": 1.0, "defended": 1.0, "partial": 0.0, "absent": 0.0},
+}
+
+
+def compute_security_posture_score(
+    evaluated_trials: List[ExecutionTrial],
+    total_eligible_checks: int = 0
+) -> Tuple[Optional[float], str, str, float]:
+    """
+    Computes Bounded Ratio-Based Automated Security Posture Score (ASPS).
+    
+    Formula:
+      E_sec = { t in evaluated_trials if t is score_eligible and outcome in (DEFENDED, BREACHED, DEFICIENCY) }
+      If |E_sec| == 0:
+          ASPS = None (Status: UNRATED, Verdict: AUDIT_INCOMPLETE)
+      Else:
+          ASPS = (sum(earned_credit) / sum(weight)) * 100
+          
+    Returns:
+      (score_val, grade_str, status_str, coverage_pct)
+    """
+    eligible_trials = [
+        t for t in evaluated_trials 
+        if t.outcome_classification in (OutcomeClassification.DEFENDED, OutcomeClassification.BREACHED, OutcomeClassification.DEFICIENCY)
+    ]
+    
+    denom_count = len(eligible_trials)
+    planned = max(total_eligible_checks, denom_count)
+    coverage_pct = round((denom_count / planned) * 100.0, 1) if planned > 0 else 0.0
+    
+    if denom_count == 0:
+        return None, "UNRATED", "AUDIT_INCOMPLETE", coverage_pct
+
+    total_weight = 0.0
+    total_earned = 0.0
+
+    for t in eligible_trials:
+        # Determine weight & credit from rubric or default
+        pf = t.probe_family_id or ""
+        rubric_entry = PROJECT_SCORING_RUBRIC.get(pf, {"weight": 1.0, "defended": 1.0, "partial": 0.0, "absent": 0.0})
+        w = rubric_entry.get("weight", 1.0)
+        total_weight += w
+
+        if t.outcome_classification == OutcomeClassification.DEFENDED:
+            total_earned += rubric_entry.get("defended", w)
+        elif t.outcome_classification == OutcomeClassification.DEFICIENCY:
+            # Check if partial condition met in raw_response / metadata
+            if t.metadata.get("partial_credit", False) or "partial" in (t.raw_response or "").lower():
+                total_earned += rubric_entry.get("partial", 0.0)
+            else:
+                total_earned += rubric_entry.get("absent", 0.0)
+        elif t.outcome_classification == OutcomeClassification.BREACHED:
+            total_earned += 0.0
+
+    if total_weight <= 0:
+        return None, "UNRATED", "AUDIT_INCOMPLETE", coverage_pct
+
+    asps = round((total_earned / total_weight) * 100.0, 1)
+    
+    if asps >= 85.0:
+        grade = "Grade A"
+    elif asps >= 70.0:
+        grade = "Grade B"
+    elif asps >= 55.0:
+        grade = "Grade C"
+    elif asps >= 40.0:
+        grade = "Grade D"
+    else:
+        grade = "Grade F"
+        
+    status = "EVALUATED"
+    return asps, grade, status, coverage_pct
 
 
 @dataclass
@@ -102,7 +216,10 @@ def compute_webapp_posture_model(
         failed = len(issues)
     total_evaluated = passed + failed
 
-    asps = round((passed / total_evaluated) * 100.0, 1) if total_evaluated > 0 else 100.0
+    if total_evaluated > 0:
+        asps = round((passed / total_evaluated) * 100.0, 1)
+    else:
+        asps = None
 
     inspected_count = len(pages_inspected)
     unassessed_count = len(unassessed_pages)

@@ -72,7 +72,8 @@ def _normalize_target_meta(record: Dict[str, Any]) -> Dict[str, str]:
             "unit": "Code Security Audits",
             "scope_name": record.get("audit_profile_name") or "Code Security Audit",
             "attack_scenario": "An adversary scans public commit history for leaked credentials or exploits outdated dependencies with published CVEs.",
-            "compliance": "OWASP Software Component Verification / CIS Supply Chain Security"
+            "compliance": "OWASP Software Component Verification / CIS Supply Chain Security",
+            "disclaimer": "Source code AST scanning not conducted. Scope bounded to public repository metadata, branch governance, and advisory policy files."
         },
         "questionnaire": {
             "label": "System Architecture Model",
@@ -127,7 +128,8 @@ def _normalize_target_meta(record: Dict[str, Any]) -> Dict[str, str]:
         "unit": cfg["unit"],
         "scope_name": cfg["scope_name"],
         "default_attack_scenario": cfg["attack_scenario"],
-        "default_compliance": cfg["compliance"]
+        "default_compliance": cfg["compliance"],
+        "disclaimer": cfg.get("disclaimer", "")
     }
 
 
@@ -420,16 +422,16 @@ def generate_html_report(record: Dict[str, Any]) -> str:
             unassessed_cnt = sum_cat_unass
 
     m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
-    b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
-    d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
-    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
+    b_cnt = record.get("breach_events_count", counts.get("total_breaches", counts.get("issues", issues_cnt)))
+    d_cnt = record.get("defended_events_count", counts.get("defended_trials", counts.get("no_issue", clean_cnt)))
+    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", counts.get("not_completed", unassessed_cnt)))
 
-    if cat_scores and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
+    if record.get("category_scores") and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
         d_cnt = sum_cat_def
         b_cnt = sum_cat_vuln
         u_cnt = sum_cat_unass
-        clean_cnt = d_cnt
-        issues_cnt = b_cnt
+    clean_cnt = d_cnt
+    issues_cnt = b_cnt
 
     if b_cnt == 0:
         m_cnt = 0
@@ -890,12 +892,14 @@ def generate_html_report(record: Dict[str, Any]) -> str:
         <div style="text-align: right; background: #f8fafc; padding: 6px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
             <div style="font-size: 8pt; font-weight: 700; color: #64748b;">{score_label.upper()} &bull; SAFETY SCORE</div>
             <div style="font-size: 14pt; font-weight: 900; color: {score_color};">{score_display} <span style="font-size: 9pt;">({safety_grade})</span></div>
+            <div style="font-size: 7.5pt; color: #64748b; font-weight: 600;">[Coverage: {clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + u_cnt} ({round((clean_cnt + issues_cnt) / max(1, clean_cnt + issues_cnt + u_cnt) * 100, 1)}%)]</div>
             <div style="font-size: 7.5pt; color: {sev_color}; font-weight: 700;">Highest: {max_sev} {'(⚡ Circuit Breaker)' if circuit_breaker else ''}</div>
         </div>
     </div>
     <div style="font-size: 9pt; color: #1e293b; line-height: 1.5;">
         <strong>Plain-English Risk Determination:</strong> {sanitize(launch_rd.get('explanation', ''))}
     </div>
+    {f'<div style="margin-top: 8px; padding: 6px 10px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 4px; font-size: 8pt; color: #92400e;"><strong>ℹ️ Scope Boundary Disclaimer:</strong> {sanitize(t_meta.get("disclaimer"))}</div>' if t_meta.get("disclaimer") else ''}
 </div>
 
 <div class="counts-grid">
@@ -1250,9 +1254,10 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     sev_color = "#dc2626" if max_sev == "CRITICAL" else ("#ea580c" if max_sev == "HIGH" else ("#d97706" if max_sev == "MEDIUM" else "#16a34a"))
     verdict_color = "#991b1b" if launch_rd.get("code") == "BLOCKED" else ("#9a3412" if launch_rd.get("code") == "ACTION_REQUIRED" else ("#92400e" if launch_rd.get("code") == "CONDITIONAL" else "#166534"))
 
+    cov_str = f"[Coverage: {clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + unassessed_cnt}]"
     scorecard_cells = [
         [
-            Paragraph(f"<font size=7 color='#64748b'><b>{clean_pdf_text(score_label.upper())}</b></font><br/><font size=15 color='{score_color}'><b>{score_display}</b></font><br/><font size=7.5 color='#64748b'><b>{safety_grade}</b></font>", ParagraphStyle('SC1', alignment=1)),
+            Paragraph(f"<font size=7 color='#64748b'><b>{clean_pdf_text(score_label.upper())}</b></font><br/><font size=15 color='{score_color}'><b>{score_display}</b></font><br/><font size=7 color='#64748b'><b>{safety_grade} {cov_str}</b></font>", ParagraphStyle('SC1', alignment=1)),
             Paragraph(f"<font size=7 color='#64748b'><b>HIGHEST SEVERITY FOUND</b></font><br/><font size=15 color='{sev_color}'><b>{max_sev}</b></font><br/><font size=7.5 color='#dc2626'><b>{'⚡ Circuit Breaker' if circuit_breaker else 'Observed'}</b></font>", ParagraphStyle('SC2', alignment=1)),
             Paragraph(f"<font size=7 color='#64748b'><b>EXECUTIVE LAUNCH VERDICT</b></font><br/><font size=10 color='{verdict_color}'><b>{clean_pdf_text(launch_rd.get('verdict', ''))}</b></font><br/><font size=6.5 color='#475569'>Coverage & severity evaluation</font>", ParagraphStyle('SC3', alignment=1))
         ]
@@ -1272,19 +1277,22 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
 
     verdict_explanation = launch_rd.get("explanation", "")
     story.append(Paragraph(f"<b>Executive Risk Determination:</b> {clean_pdf_text(verdict_explanation)}", ParagraphStyle('ExpStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=colors.HexColor('#1e293b'))))
+    if t_meta.get("disclaimer"):
+        story.append(Spacer(1, 3))
+        story.append(Paragraph(f"<b>Scope Boundary Disclaimer:</b> <font color='#92400e'>{clean_pdf_text(t_meta.get('disclaimer'))}</font>", ParagraphStyle('DiscStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7, leading=9.5, textColor=colors.HexColor('#92400e'))))
     story.append(Spacer(1, 8))
 
     m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
-    b_cnt = record.get("breach_events_count", counts.get("total_breaches", issues_cnt))
-    d_cnt = record.get("defended_events_count", counts.get("defended_trials", clean_cnt))
-    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", unassessed_cnt))
+    b_cnt = record.get("breach_events_count", counts.get("total_breaches", counts.get("issues", issues_cnt)))
+    d_cnt = record.get("defended_events_count", counts.get("defended_trials", counts.get("no_issue", clean_cnt)))
+    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", counts.get("not_completed", unassessed_cnt)))
 
-    if category_scores and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
+    if record.get("category_scores") and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
         d_cnt = sum_cat_def
         b_cnt = sum_cat_vuln
         u_cnt = sum_cat_unass
-        clean_cnt = d_cnt
-        issues_cnt = b_cnt
+    clean_cnt = d_cnt
+    issues_cnt = b_cnt
 
     if b_cnt == 0:
         m_cnt = 0

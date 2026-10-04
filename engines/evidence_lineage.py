@@ -18,9 +18,13 @@ from datetime import datetime, timezone
 
 class OutcomeClassification(str, Enum):
     """Execution trial classification outcome."""
-    DEFENDED = "DEFENDED"
-    BREACHED = "BREACHED"
-    UNASSESSED = "UNASSESSED"
+    DEFENDED = "DEFENDED"          # Validated safeguard; attack objective defeated.
+    BREACHED = "BREACHED"          # Security boundary broken; secret leaked or exploit succeeded.
+    DEFICIENCY = "DEFICIENCY"      # Hygiene/config flaw (missing header, missing policy).
+    INFORMATIONAL = "INFORMATIONAL"# Discovery observation (repo reachable, login form present).
+    COMPLIANT = "COMPLIANT"        # Negative control passed (task executed without refusal).
+    UNASSESSED = "UNASSESSED"      # Unexecuted, missing setup, timeout, rate-limited, or inconclusive.
+    NOT_APPLICABLE = "NOT_APPLICABLE" # Target lacks capability.
 
 
 class UnassessedReason(str, Enum):
@@ -33,6 +37,10 @@ class UnassessedReason(str, Enum):
     EXECUTION_ERROR = "EXECUTION_ERROR"          # Local or client driver error
     RATE_LIMITED = "RATE_LIMITED"                # Generic rate limiter hit
     SCOPE_RESTRICTED = "SCOPE_RESTRICTED"        # Excluded by authorization scope
+    SETUP_UNVERIFIED = "SETUP_UNVERIFIED"        # Prerequisite context / canary binding unverified
+    INCONCLUSIVE_OUTPUT = "INCONCLUSIVE_OUTPUT"  # Empty, whitespace-only or truncated response without leak
+    MODULE_NOT_RUN = "MODULE_NOT_RUN"            # Module/probe was not executed in current scan profile
+    PREREQUISITE_FAILED = "PREREQUISITE_FAILED"  # Upstream dependency failed (e.g., repo reachability)
 
 
 class ClassificationMethod(str, Enum):
@@ -141,8 +149,8 @@ class ExecutionTrial:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def is_evaluated(self) -> bool:
-        """True if the trial executed and was classified as DEFENDED or BREACHED."""
-        return self.outcome_classification in (OutcomeClassification.DEFENDED, OutcomeClassification.BREACHED)
+        """True if the trial executed and was classified as DEFENDED, BREACHED, or DEFICIENCY."""
+        return self.outcome_classification in (OutcomeClassification.DEFENDED, OutcomeClassification.BREACHED, OutcomeClassification.DEFICIENCY)
 
     def is_defended(self) -> bool:
         return self.outcome_classification == OutcomeClassification.DEFENDED
@@ -150,8 +158,20 @@ class ExecutionTrial:
     def is_breached(self) -> bool:
         return self.outcome_classification == OutcomeClassification.BREACHED
 
+    def is_deficiency(self) -> bool:
+        return self.outcome_classification == OutcomeClassification.DEFICIENCY
+
+    def is_informational(self) -> bool:
+        return self.outcome_classification == OutcomeClassification.INFORMATIONAL
+
+    def is_compliant(self) -> bool:
+        return self.outcome_classification == OutcomeClassification.COMPLIANT
+
     def is_unassessed(self) -> bool:
         return self.outcome_classification == OutcomeClassification.UNASSESSED
+
+    def is_not_applicable(self) -> bool:
+        return self.outcome_classification == OutcomeClassification.NOT_APPLICABLE
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

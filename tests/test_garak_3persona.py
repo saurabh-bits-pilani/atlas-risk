@@ -116,7 +116,7 @@ def test_persona_2_live_app_webhook(temp_store):
 
         assert rec["counts"]["issues"] >= 1
         dan_finding = [f for f in rec["findings"] if "DAN" in f["title"]][0]
-        assert "AML.T0051" in dan_finding["domain"]
+        assert "AML.T0054" in dan_finding["domain"]
 
 
 def test_persona_3_openrouter_rate_limit_circuit_breaker(temp_store):
