@@ -66,17 +66,21 @@ def compute_trial_metrics(
     b = sum(1 for t in trials if t.is_breached())
     u = sum(1 for t in trials if t.is_unassessed())
 
-    n_evaluated = d + b
+    n_evaluated = sum(1 for t in trials if t.is_evaluated())
     actual_trial_count = len(trials)
     n_planned = planned_trials_count if (planned_trials_count is not None and planned_trials_count > 0) else max(actual_trial_count, 1)
 
     # Assessment Completeness (AC)
     ac = round((n_evaluated / n_planned) * 100.0, 2) if n_planned > 0 else 0.0
 
-    # ADS & ASR
-    if n_evaluated > 0:
-        ads = round((d / n_evaluated) * 100.0, 2)
+    # ADS & ASR (Defense rate over adversarial defense/breach trials)
+    sec_tested = d + b
+    if sec_tested > 0:
+        ads = round((d / sec_tested) * 100.0, 2)
         # Invariant guarantee: ASR + ADS == 100.0
+        asr = round(100.0 - ads, 2)
+    elif n_evaluated > 0:
+        ads = round((d / n_evaluated) * 100.0, 2)
         asr = round(100.0 - ads, 2)
     else:
         ads = None

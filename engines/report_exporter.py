@@ -61,9 +61,10 @@ def _normalize_target_meta(record: Dict[str, Any]) -> Dict[str, str]:
             "company": "Web Application / SaaS Surface",
             "tier": "🌐 Public Web Perimeter",
             "unit": "Security Checks",
-            "scope_name": record.get("audit_profile_name") or "Web Security Audit",
+            "scope_name": record.get("audit_profile_name") or "Bounded Public Web Assessment",
             "attack_scenario": "An external attacker or automated bot exploits missing transport security, missing framing restrictions, or exposed files to compromise users or session integrity.",
-            "compliance": "OWASP Top 10:2021 Security Misconfiguration / CWE-1021"
+            "compliance": "OWASP Top 10:2021 Security Misconfiguration / CWE-1021",
+            "disclaimer": "Bounded Public Web Assessment: Evaluated external HTTP/HTTPS perimeter responses and public assets. Backend infrastructure, private source code repository, and active conversational AI testing were not conducted."
         },
         "github": {
             "label": "Repository Audited",
@@ -431,7 +432,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     na_cnt = counts.get("not_applicable", 0)
 
     cat_scores = _synthesize_category_scores(record, findings, positives)
-    if record.get("category_scores"):
+    if record.get("category_scores") and not record.get("canonical_metrics"):
         sum_cat_def = sum(c.get("defended", c.get("passed", 0)) for c in cat_scores.values())
         sum_cat_vuln = sum(c.get("vulnerable", c.get("failed", 0)) for c in cat_scores.values())
         sum_cat_unass = sum(c.get("unassessed", 0) for c in cat_scores.values())
@@ -450,7 +451,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     if u_cnt is None:
         u_cnt = counts.get("unassessed", counts.get("not_completed", unassessed_cnt))
 
-    if record.get("category_scores") and record.get("breach_events_count") is None:
+    if record.get("category_scores") and record.get("breach_events_count") is None and not record.get("canonical_metrics"):
         if d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass:
             d_cnt = sum_cat_def
             b_cnt = sum_cat_vuln
@@ -462,7 +463,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     def_cnt = record.get("deficiency_events_count", counts.get("deficiencies", counts.get("sec_deficiencies", 0)))
 
     if b_cnt > 0:
-        breach_subtext = f"({b_cnt} Breach{'es' if b_cnt != 1 else ''})"
+        breach_subtext = f"({b_cnt} Breaches)"
     elif def_cnt > 0:
         breach_subtext = f"({def_cnt} Deficienc{'ies' if def_cnt != 1 else 'y'})"
     else:
@@ -922,7 +923,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
         <div style="text-align: right; background: #f8fafc; padding: 6px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
             <div style="font-size: 8pt; font-weight: 700; color: #64748b;">{score_label.upper()} &bull; SAFETY SCORE</div>
             <div style="font-size: 14pt; font-weight: 900; color: {score_color};">{score_display} <span style="font-size: 9pt;">({safety_grade})</span></div>
-            <div style="font-size: 7.5pt; color: #64748b; font-weight: 600;">[Coverage: {clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + u_cnt} ({round((clean_cnt + issues_cnt) / max(1, clean_cnt + issues_cnt + u_cnt) * 100, 1)}%)]</div>
+            <div style="font-size: 7.5pt; color: #64748b; font-weight: 600;">[Coverage: {record.get('coverage_display', f'{clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + u_cnt} ({round((clean_cnt + issues_cnt) / max(1, clean_cnt + issues_cnt + u_cnt) * 100, 1)}%)')}]</div>
             <div style="font-size: 7.5pt; color: {sev_color}; font-weight: 700;">Highest: {max_sev} {'(⚡ Circuit Breaker)' if circuit_breaker else ''}</div>
         </div>
     </div>
@@ -1194,7 +1195,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     na_cnt = counts.get("not_applicable", 0)
 
     category_scores = _synthesize_category_scores(record, findings, positives)
-    if category_scores:
+    if category_scores and not record.get("canonical_metrics"):
         sum_cat_def = sum(c.get("defended", c.get("passed", 0)) for c in category_scores.values())
         sum_cat_vuln = sum(c.get("vulnerable", c.get("failed", 0)) for c in category_scores.values())
         sum_cat_unass = sum(c.get("unassessed", 0) for c in category_scores.values())
@@ -1284,7 +1285,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     sev_color = "#dc2626" if max_sev == "CRITICAL" else ("#ea580c" if max_sev == "HIGH" else ("#d97706" if max_sev == "MEDIUM" else "#16a34a"))
     verdict_color = "#991b1b" if launch_rd.get("code") == "BLOCKED" else ("#9a3412" if launch_rd.get("code") == "ACTION_REQUIRED" else ("#92400e" if launch_rd.get("code") == "CONDITIONAL" else "#166534"))
 
-    cov_str = f"[Coverage: {clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + unassessed_cnt}]"
+    cov_str = f"[Coverage: {record.get('coverage_display', f'{clean_cnt + issues_cnt}/{clean_cnt + issues_cnt + unassessed_cnt}')}]"
     scorecard_cells = [
         [
             Paragraph(f"<font size=7 color='#64748b'><b>{clean_pdf_text(score_label.upper())}</b></font><br/><font size=15 color='{score_color}'><b>{score_display}</b></font><br/><font size=7 color='#64748b'><b>{safety_grade} {cov_str}</b></font>", ParagraphStyle('SC1', alignment=1)),
@@ -1307,6 +1308,10 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
 
     verdict_explanation = launch_rd.get("explanation", "")
     story.append(Paragraph(f"<b>Executive Risk Determination:</b> {clean_pdf_text(verdict_explanation)}", ParagraphStyle('ExpStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=colors.HexColor('#1e293b'))))
+    if record.get("scoring_ledger"):
+        sc_led = record["scoring_ledger"]
+        story.append(Spacer(1, 3))
+        story.append(Paragraph(f"<b>Scoring Ledger:</b> {clean_pdf_text(sc_led.get('formula', ''))} &bull; Earned Credit: <b>{sc_led.get('sum_earned_credit')}</b> / Eligible Weight: <b>{sc_led.get('sum_eligible_weight')}</b> ({sc_led.get('evaluated_eligible_count', 0)} eligible checks evaluated)", ParagraphStyle('ScoreLedger', parent=styles['Normal'], fontName='Helvetica', fontSize=7.2, leading=9.5, textColor=colors.HexColor('#0f172a'))))
     if t_meta.get("disclaimer"):
         story.append(Spacer(1, 3))
         story.append(Paragraph(f"<b>Scope Boundary Disclaimer:</b> <font color='#92400e'>{clean_pdf_text(t_meta.get('disclaimer'))}</font>", ParagraphStyle('DiscStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7, leading=9.5, textColor=colors.HexColor('#92400e'))))
@@ -1322,7 +1327,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     if u_cnt is None:
         u_cnt = counts.get("unassessed", counts.get("not_completed", unassessed_cnt))
 
-    if record.get("category_scores") and record.get("breach_events_count") is None:
+    if record.get("category_scores") and record.get("breach_events_count") is None and not record.get("canonical_metrics"):
         if d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass:
             d_cnt = sum_cat_def
             b_cnt = sum_cat_vuln
@@ -1366,7 +1371,8 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
     story.append(Spacer(1, 8))
 
     # Threat Category Defense Breakdown in PDF
-    if category_scores:
+    sec_cats_to_render = record.get("security_categories") or category_scores
+    if sec_cats_to_render:
         story.append(Paragraph("Adversarial Threat Category Defense Breakdown", h2_style))
         cat_data = [[
             Paragraph("<b>Security / Threat Domain</b>", body_bold),
@@ -1377,11 +1383,11 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             Paragraph("<b>Defense Rate</b>", body_bold),
             Paragraph("<b>Status</b>", body_bold)
         ]]
-        for cat_id, cat_info in category_scores.items():
+        for cat_id, cat_info in sec_cats_to_render.items():
             c_def = cat_info.get('defended', cat_info.get('passed', 0))
-            c_vuln = cat_info.get('vulnerable', cat_info.get('failed', 0))
+            c_vuln = cat_info.get('deficiencies', 0) + cat_info.get('breaches', 0) if ('deficiencies' in cat_info or 'breaches' in cat_info) else cat_info.get('vulnerable', cat_info.get('failed', 0))
             c_unass = cat_info.get('unassessed', 0)
-            c_eval = cat_info.get('tested', c_def + c_vuln)
+            c_eval = cat_info.get('evaluated', cat_info.get('tested', c_def + c_vuln))
             c_rate = cat_info.get('pass_rate')
             if c_eval == 0 or c_rate is None:
                 rate_para = Paragraph("<font color='#64748b'><b>N/A</b></font>", body_style)
@@ -1411,7 +1417,50 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ]))
         story.append(cat_table)
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 8))
+
+    if record.get("operational_categories"):
+        story.append(Paragraph("Operational Quality & Accessibility Observations", h2_style))
+        op_data = [[
+            Paragraph("<b>Operational / Usability Domain</b>", body_bold),
+            Paragraph("<b>Evaluated</b>", body_bold),
+            Paragraph("<b>Defended</b>", body_bold),
+            Paragraph("<b>Notices / Defects</b>", body_bold),
+            Paragraph("<b>Unassessed</b>", body_bold),
+            Paragraph("<b>Pass Rate</b>", body_bold),
+            Paragraph("<b>Status</b>", body_bold)
+        ]]
+        for op_id, op_info in record["operational_categories"].items():
+            o_def = op_info.get('defended', op_info.get('passed', 0))
+            o_vuln = op_info.get('deficiencies', 0) + op_info.get('breaches', 0) if ('deficiencies' in op_info or 'breaches' in op_info) else op_info.get('vulnerable', op_info.get('failed', 0))
+            o_unass = op_info.get('unassessed', 0)
+            o_eval = op_info.get('evaluated', op_info.get('tested', o_def + o_vuln))
+            o_rate = op_info.get('pass_rate')
+            rate_para = Paragraph(f"<b>{o_rate}%</b>", body_style) if (o_eval > 0 and o_rate is not None) else Paragraph("<font color='#64748b'><b>N/A</b></font>", body_style)
+            st_color = "#16a34a" if op_info.get("status") == "PASS" else ("#ea580c" if op_info.get("status") == "DEFICIENCY" else "#64748b")
+            op_data.append([
+                Paragraph(clean_pdf_text(op_info.get("name", op_id)), body_style),
+                Paragraph(str(o_eval), body_style),
+                Paragraph(f"<font color='#16a34a'>{o_def}</font>", body_style),
+                Paragraph(f"<font color='#ea580c'>{o_vuln}</font>", body_style),
+                Paragraph(f"<font color='#64748b'>{o_unass}</font>", body_style),
+                rate_para,
+                Paragraph(f"<font color='{st_color}'><b>{op_info.get('status', 'PASS')}</b></font>", body_style),
+            ])
+        op_table = Table(op_data, colWidths=[155, 55, 55, 55, 55, 70, 70])
+        op_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(op_table)
+        story.append(Spacer(1, 3))
+        story.append(Paragraph("<font size=7 color='#64748b'><em>* Notice: Operational quality, accessibility, and latency observations contribute 0 weight to security posture score (ASPS).</em></font>", body_style))
+        story.append(Spacer(1, 8))
 
     # 1. Positive Observations
     story.append(Paragraph("1. Positive Observations (Verified Controls)", h2_style))
@@ -1581,9 +1630,33 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
 
     story.append(Spacer(1, 8))
 
-    # 3. Unassessed Areas & Required Access
-    story.append(Paragraph("3. Unassessed Areas & Permissions Required", h2_style))
-    if not unassessed:
+    # 3. Unassessed Scope & Incomplete Checks Ledger
+    story.append(Paragraph("3. Unassessed Scope & Incomplete Checks Ledger", h2_style))
+    if record.get("unassessed_checks"):
+        un_data = [[
+            Paragraph("<b>Check ID & Title</b>", body_bold),
+            Paragraph("<b>Category</b>", body_bold),
+            Paragraph("<b>Specific Reason for Incompletion</b>", body_bold),
+            Paragraph("<b>Required Capability</b>", body_bold)
+        ]]
+        for u in record["unassessed_checks"]:
+            un_data.append([
+                Paragraph(f"<b>{clean_pdf_text(u.get('check_id', ''))}</b><br/>{clean_pdf_text(u.get('name', ''))}", body_style),
+                Paragraph(clean_pdf_text(u.get("category", "")), body_style),
+                Paragraph(clean_pdf_text(u.get("specific_explanation", u.get("unassessed_reason", ""))), body_style),
+                Paragraph(clean_pdf_text(u.get("required_capability", "network_prober")), body_style),
+            ])
+        un_table = Table(un_data, colWidths=[150, 105, 175, 85])
+        un_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(un_table)
+    elif not unassessed:
         if clean_cnt + issues_cnt > 0:
             story.append(Paragraph("All designated target areas were verified.", body_style))
         else:

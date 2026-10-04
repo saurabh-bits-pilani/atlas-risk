@@ -149,8 +149,8 @@ class ExecutionTrial:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def is_evaluated(self) -> bool:
-        """True if the trial executed and was classified as DEFENDED, BREACHED, or DEFICIENCY."""
-        return self.outcome_classification in (OutcomeClassification.DEFENDED, OutcomeClassification.BREACHED, OutcomeClassification.DEFICIENCY)
+        """True if the trial executed and was classified with an evaluated outcome."""
+        return self.outcome_classification not in (OutcomeClassification.UNASSESSED, OutcomeClassification.NOT_APPLICABLE)
 
     def is_defended(self) -> bool:
         return self.outcome_classification == OutcomeClassification.DEFENDED

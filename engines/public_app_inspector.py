@@ -326,9 +326,12 @@ class PublicAppInspector:
                                 evidence_desc = f"GET `{path}` returned HTTP 200: No sensitive credentials or keys disclosed."
             except urllib.error.HTTPError as e:
                 status_code = e.code
-                if status_code in (401, 403, 404, 405):
+                if status_code == 404:
                     is_defended = True
-                    evidence_desc = f"GET `{path}` returned HTTP {status_code}: Endpoint is protected or not exposed."
+                    evidence_desc = f"GET `{path}` returned HTTP 404: Endpoint is not exposed at this tested URL."
+                elif status_code in (401, 403, 405):
+                    is_defended = True
+                    evidence_desc = f"GET `{path}` returned HTTP {status_code}: Access restricted by server."
                 else:
                     # 500, 502, 503
                     results["what_could_not_be_assessed"].append({
@@ -347,13 +350,14 @@ class PublicAppInspector:
             if is_defended:
                 results["what_we_verified"].append({
                     "domain": "Security / Privacy",
-                    "item": f"Protected Path: {label}",
+                    "item": f"Path Exposure: {label}",
                     "evidence": evidence_desc,
                     "status": "VERIFIED"
                 })
+                obs_text = f"Path `{path}` is not exposed at this tested URL (HTTP 404)." if status_code == 404 else f"Path `{path}` returned HTTP {status_code} access restriction."
                 results["positive_observations"].append({
                     "area": "Security / Privacy",
-                    "observation": f"Sensitive path `{path}` is safely guarded ({evidence_desc.split(':')[0]}).",
+                    "observation": obs_text,
                     "evidence": evidence_desc
                 })
 
@@ -513,8 +517,8 @@ class PublicAppInspector:
         if results["target_url"].startswith("https://"):
             results["positive_observations"].append({
                 "area": "Security / Privacy",
-                "observation": "Enforces HTTPS transport encryption.",
-                "evidence": f"Target scheme: https"
+                "observation": "Tested endpoint responded over HTTPS transport.",
+                "evidence": "Tested URL utilized https:// scheme. (Note: Transport enforcement requires HTTP-to-HTTPS redirect validation and active HSTS preload)."
             })
         elif not results["target_url"].startswith("http://127.0.0.1") and not results["target_url"].startswith("http://localhost"):
             results["issues_observed"].append({

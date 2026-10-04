@@ -13,6 +13,8 @@ Verifies all 8 Acceptance Criteria:
 
 import unittest
 import json
+import threading
+import time
 from engines.public_app_inspector import PublicAppInspector
 from assess_my_app_ui import build_markdown_report
 
@@ -23,6 +25,21 @@ TARGET_HYBRID = "http://127.0.0.1:8088/hybrid_app"
 class TestAssessMyApp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import urllib.request
+        from data.vibe_demo_server import run_server
+        # Ensure vibe demo server is running
+        try:
+            urllib.request.urlopen("http://127.0.0.1:8088/public_app", timeout=0.5)
+        except Exception:
+            cls.server_thread = threading.Thread(target=run_server, daemon=True)
+            cls.server_thread.start()
+            for _ in range(30):
+                try:
+                    urllib.request.urlopen("http://127.0.0.1:8088/public_app", timeout=0.2)
+                    break
+                except Exception:
+                    time.sleep(0.1)
+
         cls.inspector = PublicAppInspector(max_pages=3)
         cls.res_public = cls.inspector.inspect_url(TARGET_PUBLIC)
         cls.res_hybrid = cls.inspector.inspect_url(TARGET_HYBRID)

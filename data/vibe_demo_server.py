@@ -163,9 +163,11 @@ class VibeDemoHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"404 Not Found")
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
 def run_server():
-    server = socketserver.TCPServer(("127.0.0.1", PORT), VibeDemoHandler)
-    server.allow_reuse_address = True
+    server = ReusableTCPServer(("127.0.0.1", PORT), VibeDemoHandler)
     print(f"[*] VibeDemoServer running on http://127.0.0.1:{PORT}")
     server.serve_forever()
 

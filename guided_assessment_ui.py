@@ -1645,7 +1645,7 @@ def compute_executive_scorecard(
         n_defended = sum(1 for t in trials if t.is_defended())
         n_breached = sum(1 for t in trials if t.is_breached())
         n_unassessed = sum(1 for t in trials if t.is_unassessed())
-        n_evaluated = n_defended + n_breached
+        n_evaluated = sum(1 for t in trials if t.is_evaluated())
         n_planned = max(total_tested if total_tested > 0 else n_evaluated, n_evaluated + n_unassessed)
         issues_cnt = len(findings) if findings else n_breached
         safe_cnt = len(positive_obs) if positive_obs else n_defended
@@ -1922,35 +1922,74 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             sev = "HIGH" if any(k in iss_text for k in ["hsts", "admin", ".env", "credential"]) else "MEDIUM"
             fix_text = iss.get("fix", "Configure recommended HTTP security response headers on web server or reverse proxy.")
 
-            # Dynamically derive Web taxonomy based on actual evidence
-            if any(k in iss_text for k in ["hsts", "tls", "ssl", "plaintext", "https", "cleartext"]):
+            # Dynamically derive Web taxonomy and semantic risk narrative based on actual evidence
+            if any(k in iss_text for k in ["alt", "lang", "viewport", "title", "accessibility", "aria"]):
+                compliance_str = "WCAG 2.1 / Web Usability Standards | N/A (Web Usability)"
+                biz_impact = "Screen reader accessibility barrier; assistive technologies cannot convey graphic purpose to visually impaired users, creating WCAG 2.1 Level A compliance exposure."
+                attack_scen = "None (Non-adversarial usability defect; automated web accessibility checkers and compliance auditors will flag missing alternative text)."
+                sev = "INFORMATIONAL"
+            elif any(k in iss_text for k in ["latency", "ttfb", "response time", "performance"]):
+                compliance_str = "Web Performance & Availability Guidelines | N/A (Performance)"
+                biz_impact = "Degraded user responsiveness; high initial byte latency increases bounce rates and reduces search engine crawl efficiency."
+                attack_scen = "None (Operational capacity observation; sustained high TTFB can worsen under peak traffic load)."
+                sev = "INFORMATIONAL"
+            elif any(k in iss_text for k in ["referrer-policy"]):
+                compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | N/A (Web Surface)"
+                biz_impact = "Potential leakage of internal URL paths or query tokens in HTTP Referer headers to external destination origins."
+                attack_scen = "An external third-party destination server observes sensitive internal URL paths or query tokens in HTTP request headers."
+                sev = "MEDIUM"
+            elif any(k in iss_text for k in ["x-content-type-options"]):
+                compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | N/A (Web Surface)"
+                biz_impact = "MIME-type sniffing vulnerability; browsers may execute non-executable files disguised as scripts or stylesheets."
+                attack_scen = "An attacker uploads a malicious file that the browser interprets as executable script due to missing nosniff header."
+                sev = "MEDIUM"
+            elif any(k in iss_text for k in ["clickjacking", "x-frame-options", "frame-ancestors"]):
+                compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | N/A (Web Surface)"
+                biz_impact = "Exposes web application interfaces to clickjacking framing and UI redress attacks."
+                attack_scen = "An attacker embeds the application inside an opaque iframe to trick authenticated users into clicking unauthorized actions."
+                sev = "HIGH"
+            elif any(k in iss_text for k in ["csp", "content-security-policy"]):
+                compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | N/A (Web Surface)"
+                biz_impact = "Lack of restrictive Content Security Policy increases blast radius of cross-site scripting (XSS) and data exfiltration."
+                attack_scen = "An attacker exploiting an injection flaw can load remote malicious scripts or exfiltrate data without browser policy restriction."
+                sev = "MEDIUM"
+            elif any(k in iss_text for k in ["hsts", "strict-transport-security", "tls", "ssl", "cleartext", "https"]):
                 compliance_str = "OWASP Top 10 Web (A02: Cryptographic Failures) | N/A (Web Surface)"
+                biz_impact = "Risk of SSL stripping and man-in-the-middle cleartext downgrade on initial insecure connections."
+                attack_scen = "An attacker on an untrusted local network intercepts initial unencrypted HTTP requests before TLS upgrade."
+                sev = "HIGH"
             elif any(k in iss_text for k in ["cookie", "samesite", "httponly", "session"]):
                 compliance_str = "OWASP Top 10 Web (A07: Identification & Authentication Failures) | N/A (Web Surface)"
+                biz_impact = "Session cookies lacking HttpOnly or Secure flags are exposed to client-side script theft via XSS or cleartext transmission."
+                attack_scen = "An attacker executing cross-site script reads document.cookie to hijack authenticated user sessions."
+                sev = "MEDIUM"
             elif any(k in iss_text for k in [".env", "secret", "credential"]):
                 compliance_str = "OWASP Top 10 Web (A01: Broken Access Control) | MITRE ATLAS AML.T0055: Unsecured Credentials"
+                biz_impact = "Exposure of database credentials, API keys, or application secrets enables full server compromise."
+                attack_scen = "An attacker downloads exposed configuration files to extract database passwords and cloud credentials."
+                sev = "CRITICAL"
             elif any(k in iss_text for k in ["admin", "robots.txt", "path"]):
                 compliance_str = "OWASP Top 10 Web (A01: Broken Access Control) | N/A (Web Surface)"
-            elif any(k in iss_text for k in ["sri", "subresource", "integrity"]):
-                compliance_str = "OWASP Top 10 Web (A08: Software & Data Integrity Failures) | N/A (Web Surface)"
-            elif any(k in iss_text for k in ["injection", "xss", "cross-site"]):
-                compliance_str = "OWASP Top 10 Web (A03: Injection) | N/A (Web Surface)"
-            elif any(k in iss_text for k in ["alt", "lang", "viewport", "title", "accessibility", "aria"]):
-                compliance_str = "WCAG 2.1 / Web Usability Standards | N/A (Web Usability)"
+                biz_impact = "Unintended endpoint disclosure aids adversarial perimeter reconnaissance and credential brute-forcing."
+                attack_scen = "An attacker discovers administrative interfaces to conduct automated password guessing or exploit exposed endpoints."
+                sev = "HIGH"
             else:
                 compliance_str = "OWASP Top 10 Web (A05: Security Misconfiguration) | N/A (Web Surface)"
+                biz_impact = "Security hygiene gap in public web perimeter configuration."
+                attack_scen = "An attacker identifies server configuration weaknesses during automated perimeter reconnaissance."
+                sev = "MEDIUM"
 
             findings.append({
                 "domain": dom,
                 "severity": sev,
                 "title": iss.get("issue", "Security or Usability Issue"),
                 "observed": iss.get("evidence", ""),
-                "why_it_matters": "Affects user accessibility, browser privacy, perimeter defense, or UI resilience.",
+                "why_it_matters": biz_impact,
                 "evidence": iss.get("evidence", ""),
                 "action": fix_text,
                 "how_to_verify": "Apply recommended configuration fix and re-run audit.",
-                "business_impact": "Exposes web assets to framing/clickjacking, SSL downgrade, or credential exposure.",
-                "attack_scenario": f"An attacker targets {target_url} via cross-origin eavesdropping, iframe encapsulation, or path fuzzing.",
+                "business_impact": biz_impact,
+                "attack_scenario": attack_scen,
                 "code_fix": fix_text,
                 "compliance": compliance_str
             })
@@ -1971,6 +2010,19 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
 
     if categories:
         categories[0]["status"] = "running"
+
+    from engines.check_registry import (
+        CanonicalAssessmentLedger,
+        WEB_CHECK_REGISTRY,
+        CheckOutcome,
+        evaluate_csp_rubric,
+        evaluate_hsts_rubric
+    )
+    ledger = CanonicalAssessmentLedger(
+        target_type="website",
+        target_identifier=target_url,
+        planned_definitions=WEB_CHECK_REGISTRY
+    )
 
     recent_telemetry = []
     trials: list = []
@@ -2131,6 +2183,42 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         )
         trials.append(trial)
 
+        chk_id = f"CHK-WEB-{idx+1:03d}"
+        if outcome == OutcomeClassification.DEFENDED:
+            l_outcome = CheckOutcome.DEFENDED
+            r_frac = 1.0
+        elif outcome == OutcomeClassification.DEFICIENCY:
+            l_outcome = CheckOutcome.DEFICIENCY
+            if "csp" in p_name_lower:
+                csp_val = pages[0].get("headers", {}).get("content-security-policy", "") if pages else ""
+                _, r_frac, _ = evaluate_csp_rubric(csp_val)
+            elif "hsts" in p_name_lower:
+                hsts_val = pages[0].get("headers", {}).get("strict-transport-security", "") if pages else ""
+                is_https = target_url.startswith("https://")
+                _, r_frac, _ = evaluate_hsts_rubric(hsts_val, is_https)
+            else:
+                r_frac = 0.0
+        elif outcome == OutcomeClassification.INFORMATIONAL:
+            l_outcome = CheckOutcome.INFORMATIONAL
+            r_frac = 0.0
+        elif outcome == OutcomeClassification.BREACHED:
+            l_outcome = CheckOutcome.BREACHED
+            r_frac = 0.0
+        else:
+            l_outcome = CheckOutcome.UNASSESSED
+            r_frac = 0.0
+
+        u_reason_code = str(unassessed_reason.value if unassessed_reason else "MODULE_NOT_RUN")
+        if chk_id in ledger.entries:
+            ledger.record_evaluation(
+                check_id=chk_id,
+                outcome=l_outcome,
+                specific_reason=evidence_text or f"Check outcome: {l_outcome.value}",
+                evidence_reference=evidence_text,
+                rubric_fraction=r_frac,
+                unassessed_reason=u_reason_code
+            )
+
         if c_obj["completed"] >= c_obj["total"]:
             c_obj["status"] = "completed"
             c_idx = categories.index(c_obj)
@@ -2202,6 +2290,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         for c in categories
     }
 
+    ledger_metrics = ledger.compute_canonical_metrics()
+
     scorecard = compute_executive_scorecard(
         findings=findings,
         positive_obs=positive_obs,
@@ -2214,6 +2304,12 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         unassessed_count=tot_unassessed
     )
 
+    if ledger_metrics.get("asps_display") is not None:
+        scorecard["overall_safety_score"] = ledger_metrics["asps_display"]
+        scorecard["safety_grade"] = ledger_metrics["safety_grade"]
+    scorecard["assessment_completeness"] = ledger_metrics["coverage_pct"]
+    scorecard["launch_readiness"] = ledger_metrics["launch_readiness"]
+
     now_utc = datetime.now(timezone.utc)
     timestamp_utc = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
     ist_time = now_utc + timedelta(hours=5, minutes=30)
@@ -2221,7 +2317,7 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     eval_date_display = f"{timestamp_utc} ({ist_time.strftime('%H:%M:%S IST')})"
 
     status_str = "STOPPED_CERTIFIED" if stopped else ("PARTIAL" if tot_unassessed > 0 else "COMPLETE")
-    ac_pct = scorecard["assessment_completeness"]
+    ac_pct = ledger_metrics["coverage_pct"]
     m_cnt = scorecard.get("unique_findings_count", len(findings))
 
     sec_breaches = sum(1 for t in trials if t.outcome_classification == OutcomeClassification.BREACHED)
@@ -2229,8 +2325,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     weakness_desc = f"{sec_breaches} breach(es), {sec_deficiencies} config deficiency(ies)" if (sec_breaches > 0 or sec_deficiencies > 0) else f"{tot_vuln} finding(s)"
 
     summary_str = (
-        f"Web security audit ({prof_info['name']}) completed for {target_url}. "
-        f"Inspected {len(pages)} accessible page(s). Evaluated {tot_eval} of {tot_plan} checks in {elapsed_final}s ({ac_pct:.1f}% completeness). "
+        f"Bounded Public Web Assessment ({prof_info['name']}) completed for {target_url}. "
+        f"Inspected {len(pages)} accessible page(s). Evaluated {ledger_metrics['evaluated_count']} of {ledger_metrics['planned_count']} checks in {elapsed_final}s ({ac_pct:.1f}% completeness). "
         f"Observed {m_cnt} finding(s) ({weakness_desc}), {tot_def} verified defense(s), and {tot_unassessed} unassessed check(s). "
         f"Safety Score: {scorecard['overall_safety_score']}/100 ({scorecard['safety_grade']}). Highest Severity: {scorecard['max_severity_found']}."
     )
@@ -2246,16 +2342,24 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         "target_type": "website",
         "target_input": target_url,
         "scan_profile": scan_profile,
-        "audit_profile_name": prof_info["name"],
+        "audit_profile_name": "Bounded Public Web Assessment",
         "audit_profile_tier": prof_info["report_tier"],
         "overall_safety_score": scorecard["overall_safety_score"],
-        "score_label": scorecard["score_label"],
+        "score_label": "Application Security Posture Score (ASPS)",
         "safety_grade": scorecard["safety_grade"],
         "max_severity_found": scorecard["max_severity_found"],
         "circuit_breaker_triggered": scorecard["circuit_breaker_triggered"],
         "launch_readiness": scorecard["launch_readiness"],
         "attack_success_rate": scorecard["attack_success_rate"],
         "assessment_completeness": ac_pct,
+        "coverage_pct": ledger_metrics["coverage_pct"],
+        "coverage_display": ledger_metrics["coverage_display"],
+        "canonical_metrics": ledger_metrics,
+        "scoring_ledger": ledger_metrics["scoring_ledger"],
+        "security_categories": ledger_metrics["security_categories"],
+        "operational_categories": ledger_metrics["operational_categories"],
+        "unassessed_checks": ledger_metrics["unassessed_ledger"],
+        "ledger": ledger_metrics["entries"],
         "category_scores": category_scores,
         "total_prompts_tested": tot_eval,
         "total_prompts_planned": tot_plan,
@@ -2289,7 +2393,14 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         "execution_trials": [t.to_dict() for t in trials],
         "findings": findings,
         "positive_observations": positive_obs,
-        "unassessed_areas": raw_res.get("what_could_not_be_assessed", []),
+        "unassessed_areas": [
+            {
+                "area": f"{u['check_id']}: {u['name']}",
+                "reason": u["specific_explanation"] or u["unassessed_reason"],
+                "required_access": u["required_capability"]
+            }
+            for u in ledger_metrics["unassessed_ledger"]
+        ] if ledger_metrics["unassessed_ledger"] else raw_res.get("what_could_not_be_assessed", []),
         "next_steps": raw_res.get("next_steps_required_access", []),
         "raw_telemetry": raw_res
     }
