@@ -1647,8 +1647,8 @@ def compute_executive_scorecard(
         n_unassessed = sum(1 for t in trials if t.is_unassessed())
         n_evaluated = n_defended + n_breached
         n_planned = max(total_tested if total_tested > 0 else n_evaluated, n_evaluated + n_unassessed)
-        issues_cnt = n_breached
-        safe_cnt = n_defended
+        issues_cnt = len(findings) if findings else n_breached
+        safe_cnt = len(positive_obs) if positive_obs else n_defended
     else:
         issues_cnt = len(findings)
         safe_cnt = len(positive_obs)
@@ -1758,11 +1758,12 @@ def compute_executive_scorecard(
                 [1] * unassessed_count if unassessed_count else [],
                 [1] * max(1, n_evaluated),
                 evaluated_defended_count=n_defended,
-                evaluated_breached_count=n_breached
+                evaluated_breached_count=n_breached,
+                evaluated_security_trials=trials if trials else None
             )
-            score_val = int(round(web_model.asps_posture_score))
+            score_val = int(round(web_model.asps_posture_score)) if web_model.asps_posture_score is not None else None
             score_label = web_model.score_label
-            grade_str = "Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F")))
+            grade_str = "UNRATED" if score_val is None else ("Grade A" if score_val >= 85 else ("Grade B" if score_val >= 70 else ("Grade C" if score_val >= 55 else ("Grade D" if score_val >= 40 else "Grade F"))))
         else:
             score_val = int(round(ads)) if ads is not None else 0
             score_label = "ATLAS Defense Score (ADS)"
@@ -2034,19 +2035,44 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             elif "ssl/tls" in p_name_lower or "reachability" in p_name_lower:
                 is_specifically_verified = True
                 verified_detail = f"Connection and TLS handshake established ({pages[0].get('ttfb_ms', 0)}ms TTFB)"
-            elif ".env" in p_name_lower or "secrets" in p_name_lower:
-                # Sensitive paths probe ran; if not in matching_issue, it was protected (returned 403/404)
-                is_specifically_verified = True
-                verified_detail = "Probed /.env: HTTP 403/404 received; credentials not exposed"
+            elif ".env" in p_name_lower or "secrets" in p_name_lower or "git" in p_name_lower:
+                # Find corresponding verified evidence from PublicAppInspector
+                dot_env_v = next((v for v in raw_res.get("what_we_verified", []) if ".env" in v.get("item", "").lower() or "environment" in v.get("item", "").lower()), None)
+                if dot_env_v:
+                    is_specifically_verified = True
+                    verified_detail = dot_env_v.get("evidence", "Probed /.env: HTTP 404/403 received; credentials not exposed")
             elif "robots.txt" in p_name_lower:
-                is_specifically_verified = True
-                verified_detail = "Passive inspection of /robots.txt completed; no critical credentials disclosed"
+                robots_v = next((v for v in raw_res.get("what_we_verified", []) if "robots.txt" in v.get("item", "").lower()), None)
+                if robots_v:
+                    is_specifically_verified = True
+                    verified_detail = robots_v.get("evidence", "GET /robots.txt passive inspection completed without sensitive path exposure")
+            elif "admin" in p_name_lower:
+                admin_v = next((v for v in raw_res.get("what_we_verified", []) if "admin" in v.get("item", "").lower()), None)
+                if admin_v:
+                    is_specifically_verified = True
+                    verified_detail = admin_v.get("evidence", "GET /admin returned standard auth interface without bypass")
 
             if matching_issue:
-                outcome = OutcomeClassification.BREACHED
+                # Distinguish security breach, configuration deficiency, and usability/performance
+                iss_dom = matching_issue.get("domain", "").lower()
+                iss_text_lower = matching_issue.get("issue", "").lower()
+                if "performance" in iss_dom or "latency" in iss_text_lower:
+                    outcome = OutcomeClassification.INFORMATIONAL
+                    result_tag = "🟡 Latency Benchmark"
+                    c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+                elif "accessibility" in iss_dom or "alt" in iss_text_lower or "lang" in iss_text_lower:
+                    outcome = OutcomeClassification.INFORMATIONAL
+                    result_tag = "🟡 Usability Notice"
+                    c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+                elif any(h in iss_text_lower for h in ["missing", "header", "referrer-policy", "x-content-type-options", "clickjacking", "csp", "hsts"]):
+                    outcome = OutcomeClassification.DEFICIENCY
+                    result_tag = "🟠 Config Deficiency"
+                    c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
+                else:
+                    outcome = OutcomeClassification.BREACHED
+                    result_tag = "🔴 Breach / Exploit"
+                    c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
                 evidence_text = f"{matching_issue.get('issue', '')}: {matching_issue.get('evidence', '')}".strip(": ")
-                result_tag = "🔴 Issue Detected"
-                c_obj["vulnerable"] = c_obj.get("vulnerable", 0) + 1
             elif matching_unassessed:
                 outcome = OutcomeClassification.UNASSESSED
                 unassessed_reason = _safe_unassessed_reason("AUTH_REQUIRED")
@@ -2198,10 +2224,14 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
     ac_pct = scorecard["assessment_completeness"]
     m_cnt = scorecard.get("unique_findings_count", len(findings))
 
+    sec_breaches = sum(1 for t in trials if t.outcome_classification == OutcomeClassification.BREACHED)
+    sec_deficiencies = sum(1 for t in trials if t.outcome_classification == OutcomeClassification.DEFICIENCY)
+    weakness_desc = f"{sec_breaches} breach(es), {sec_deficiencies} config deficiency(ies)" if (sec_breaches > 0 or sec_deficiencies > 0) else f"{tot_vuln} finding(s)"
+
     summary_str = (
         f"Web security audit ({prof_info['name']}) completed for {target_url}. "
         f"Inspected {len(pages)} accessible page(s). Evaluated {tot_eval} of {tot_plan} checks in {elapsed_final}s ({ac_pct:.1f}% completeness). "
-        f"Observed {m_cnt} finding(s) ({tot_vuln} breach event(s)), {tot_def} verified defense(s), and {tot_unassessed} unassessed check(s). "
+        f"Observed {m_cnt} finding(s) ({weakness_desc}), {tot_def} verified defense(s), and {tot_unassessed} unassessed check(s). "
         f"Safety Score: {scorecard['overall_safety_score']}/100 ({scorecard['safety_grade']}). Highest Severity: {scorecard['max_severity_found']}."
     )
 
@@ -2239,7 +2269,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
         "counts": {
             "unique_findings": m_cnt,
             "issues": m_cnt,
-            "total_breaches": tot_vuln,
+            "total_breaches": sec_breaches,
+            "deficiencies": sec_deficiencies,
             "defended_trials": tot_def,
             "no_issue": tot_def,
             "unassessed": tot_unassessed,
@@ -2250,7 +2281,8 @@ def run_staged_website_audit(inp: dict, journey_container, status_container, sto
             "not_applicable": 0
         },
         "unique_findings_count": m_cnt,
-        "breach_events_count": tot_vuln,
+        "breach_events_count": sec_breaches,
+        "deficiency_events_count": sec_deficiencies,
         "defended_events_count": tot_def,
         "unassessed_events_count": tot_unassessed,
         "candidate_clusters": scorecard.get("candidate_clusters", []),

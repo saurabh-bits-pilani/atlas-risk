@@ -114,6 +114,8 @@ def _derive_evidence_signature(trial: ExecutionTrial, target_type: str = "") -> 
             return "WEB:CLEARTEXT_DATA_TRANSMISSION"
         elif "injection" in resp_lower or "xss" in resp_lower or "cross-site" in resp_lower:
             return "WEB:INJECTION_VULNERABILITY"
+        elif "latency" in resp_lower or "load time" in resp_lower or "ttfb" in resp_lower or "response time" in resp_lower:
+            return "WEB:PERFORMANCE_LATENCY"
         elif "alt" in resp_lower or "accessibility" in resp_lower or "viewport" in resp_lower or "lang" in resp_lower:
             return "WEB:ACCESSIBILITY_DEFICIT"
         else:
@@ -206,11 +208,18 @@ def cluster_trials_into_findings(
 
     clusters: List[CandidateFindingCluster] = []
     for idx, (k, data) in enumerate(candidate_map.items(), 1):
-        # Calculate ERR_k: B_k / T_k where T_k is all evaluated trials touching this probe family or asset
+        # Calculate ERR_k: B_k / T_k where T_k is evaluated trials for this specific attack case or probe family
         b_k = len(data["breached_trial_ids"])
         pf_id = data["pf_id"]
-        trials_touching_family = [t for t in evaluated_trials if t.probe_family_id == pf_id]
-        t_k = len(trials_touching_family) if trials_touching_family else max(b_k, len(evaluated_trials))
+        # In structured web audits, trials are distinct probe checks. B_k represents the failed trials for this finding.
+        # If repeated trials were run for this specific check, t_k is that count; otherwise for single evaluations t_k = b_k (1/1 = 100% verified observation)
+        case_ids = data["attack_case_ids"]
+        trials_matching_case = [t for t in evaluated_trials if t.attack_case_id in case_ids]
+        if trials_matching_case:
+            t_k = len(trials_matching_case)
+        else:
+            trials_touching_family = [t for t in evaluated_trials if t.probe_family_id == pf_id]
+            t_k = len(trials_touching_family) if trials_touching_family else b_k
         err_k = round(b_k / t_k, 2) if t_k > 0 else 1.0
 
         # Evidence Confidence derivation
@@ -290,6 +299,11 @@ def cluster_trials_into_findings(
                 owasp = "OWASP Top 10 Web A03:2021 - Injection"
                 hyp_stmt = "Unsanitized user inputs are accepted into HTML contexts, allowing potential script injection."
                 fix = "Implement contextual output encoding and parameterized input validation."
+            elif sig == "WEB:PERFORMANCE_LATENCY":
+                title = "High Server Response Latency"
+                owasp = "Web Performance & Availability Guidelines"
+                hyp_stmt = "Server response time exceeded latency thresholds, impacting user responsiveness and service availability."
+                fix = "Review server-side rendering bottlenecks, enable edge caching or CDN distribution, and optimize database queries."
             elif sig == "WEB:ACCESSIBILITY_DEFICIT":
                 ev_lower = data["sample_evidence"].lower()
                 owasp = "WCAG 2.1 / Web Usability Standards"

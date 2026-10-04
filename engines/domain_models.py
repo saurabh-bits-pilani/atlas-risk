@@ -194,26 +194,33 @@ def compute_webapp_posture_model(
     pages_inspected: List[Any],
     evaluated_defended_count: Optional[int] = None,
     evaluated_breached_count: Optional[int] = None,
+    evaluated_security_trials: Optional[List[ExecutionTrial]] = None,
 ) -> WebAppPostureModelResult:
     """
     Computes web application posture score.
     Protected login areas affect Public Surface Coverage, NEVER penalizing the posture score.
-    If evaluated_defended_count and evaluated_breached_count are provided (from execution trials),
-    the posture score directly reflects those evaluated checks:
-      passed = evaluated_defended_count (D)
-      failed = evaluated_breached_count (B)
-      total_evaluated = D + B
-      ASPS = (D / (D + B)) * 100
-      
-      For example, 20 defended + 5 breached:
-      20 / 25 * 100 = 80.0%
+    If evaluated_security_trials are provided, score is computed strictly from eligible security checks,
+    completely excluding non-security controls (Accessibility & Latency).
     """
-    if evaluated_defended_count is not None and evaluated_breached_count is not None:
+    if evaluated_security_trials is not None:
+        # Filter for eligible security trials only
+        sec_trials = [
+            t for t in evaluated_security_trials
+            if t.probe_family_id in ("security_headers", "client_resilience", "perimeter_fuzzing", "discovery")
+            and t.outcome_classification in (OutcomeClassification.DEFENDED, OutcomeClassification.BREACHED, OutcomeClassification.DEFICIENCY)
+        ]
+        passed = sum(1 for t in sec_trials if t.outcome_classification == OutcomeClassification.DEFENDED)
+        failed = sum(1 for t in sec_trials if t.outcome_classification in (OutcomeClassification.BREACHED, OutcomeClassification.DEFICIENCY))
+    elif evaluated_defended_count is not None and evaluated_breached_count is not None:
         passed = evaluated_defended_count
         failed = evaluated_breached_count
     else:
-        passed = len(positives)
-        failed = len(issues)
+        # Filter issues and positives by Security domain
+        sec_positives = [p for p in positives if isinstance(p, dict) and p.get("domain", p.get("area", "")) in ("Security / Privacy", "Security")]
+        sec_issues = [i for i in issues if isinstance(i, dict) and i.get("domain", "") in ("Security / Privacy", "Security")]
+        passed = len(sec_positives) if sec_positives else len(positives)
+        failed = len(sec_issues) if sec_issues else len(issues)
+
     total_evaluated = passed + failed
 
     if total_evaluated > 0:

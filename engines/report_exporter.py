@@ -164,7 +164,7 @@ def _normalize_launch_readiness(
     tot: int = 0,
     target_type: str = ""
 ) -> Dict[str, str]:
-    if tot == 0 or (isinstance(launch_rd, dict) and launch_rd.get("code") == "UNRATED"):
+    if tot == 0:
         return {
             "code": "UNRATED",
             "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
@@ -172,6 +172,19 @@ def _normalize_launch_readiness(
         }
     if isinstance(launch_rd, dict) and "code" in launch_rd and "verdict" in launch_rd:
         res = dict(launch_rd)
+        if res.get("code") == "UNRATED" or res.get("policy_verdict") == "AUDIT_INCOMPLETE":
+            # If checks were evaluated, distinguish coverage insufficiency from unreachability
+            if tot > 0:
+                res["code"] = "UNRATED"
+                res["verdict"] = res.get("verdict") or "AUDIT INCOMPLETE (Insufficient Evaluation Coverage)"
+                if not res.get("explanation") or "zero security checks" in res.get("explanation", "").lower():
+                    res["explanation"] = f"Evaluation coverage ({clean_cnt}/{tot} evaluated checks) is below minimum certified audit completeness thresholds. Scope boundaries or unassessed areas prevent full policy certification."
+                return res
+            return {
+                "code": "UNRATED",
+                "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
+                "explanation": "Target could not be reached or zero security checks were evaluated. No security certification granted."
+            }
         if target_type == "website":
             if res.get("code") in ("APPROVED", "PILOT_ELIGIBLE", "ELIGIBLE_FOR_RELEASE") or "SAFE FOR" in res.get("verdict", "") or "RELEASE" in res.get("verdict", ""):
                 res["verdict"] = "NO FINDINGS OBSERVED — ASSESSED WEB SCOPE"
@@ -191,6 +204,12 @@ def _normalize_launch_readiness(
     max_sev_str = str(max_sev or "").upper()
     
     if "UNRATED" in code_str:
+        if tot > 0:
+            return {
+                "code": "UNRATED",
+                "verdict": "AUDIT INCOMPLETE (Insufficient Evaluation Coverage)",
+                "explanation": f"Evaluation coverage ({clean_cnt}/{tot} checks) is below minimum completeness threshold. Scope boundaries require additional access."
+            }
         return {
             "code": "UNRATED",
             "verdict": "AUDIT INCOMPLETE (Target Unreachable / Unassessed)",
@@ -412,7 +431,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     na_cnt = counts.get("not_applicable", 0)
 
     cat_scores = _synthesize_category_scores(record, findings, positives)
-    if cat_scores:
+    if record.get("category_scores"):
         sum_cat_def = sum(c.get("defended", c.get("passed", 0)) for c in cat_scores.values())
         sum_cat_vuln = sum(c.get("vulnerable", c.get("failed", 0)) for c in cat_scores.values())
         sum_cat_unass = sum(c.get("unassessed", 0) for c in cat_scores.values())
@@ -421,22 +440,33 @@ def generate_html_report(record: Dict[str, Any]) -> str:
             issues_cnt = sum_cat_vuln
             unassessed_cnt = sum_cat_unass
 
-    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
-    b_cnt = record.get("breach_events_count", counts.get("total_breaches", counts.get("issues", issues_cnt)))
-    d_cnt = record.get("defended_events_count", counts.get("defended_trials", counts.get("no_issue", clean_cnt)))
-    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", counts.get("not_completed", unassessed_cnt)))
+    b_cnt = record.get("breach_events_count")
+    if b_cnt is None:
+        b_cnt = counts.get("total_breaches", counts.get("issues", issues_cnt))
+    d_cnt = record.get("defended_events_count")
+    if d_cnt is None:
+        d_cnt = counts.get("defended_trials", counts.get("no_issue", clean_cnt))
+    u_cnt = record.get("unassessed_events_count")
+    if u_cnt is None:
+        u_cnt = counts.get("unassessed", counts.get("not_completed", unassessed_cnt))
 
-    if record.get("category_scores") and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
-        d_cnt = sum_cat_def
-        b_cnt = sum_cat_vuln
-        u_cnt = sum_cat_unass
-    clean_cnt = d_cnt
-    issues_cnt = b_cnt
+    if record.get("category_scores") and record.get("breach_events_count") is None:
+        if d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass:
+            d_cnt = sum_cat_def
+            b_cnt = sum_cat_vuln
+            u_cnt = sum_cat_unass
+        clean_cnt = d_cnt
+        issues_cnt = b_cnt
 
-    if b_cnt == 0:
-        m_cnt = 0
-    elif m_cnt > b_cnt:
-        m_cnt = b_cnt
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or len(findings)))
+    def_cnt = record.get("deficiency_events_count", counts.get("deficiencies", counts.get("sec_deficiencies", 0)))
+
+    if b_cnt > 0:
+        breach_subtext = f"({b_cnt} Breach{'es' if b_cnt != 1 else ''})"
+    elif def_cnt > 0:
+        breach_subtext = f"({def_cnt} Deficienc{'ies' if def_cnt != 1 else 'y'})"
+    else:
+        breach_subtext = "(0 Breaches)"
 
     # Derive Safety Score & Circuit Breaker if not directly on record
     score_label = record.get("score_label")
@@ -556,7 +586,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left;">Threat Surface / Category</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Evaluated</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Defended</th>
-                    <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Breached</th>
+                    <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Defects / Breached</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Unassessed</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Defense Rate</th>
                     <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Status</th>
@@ -906,7 +936,7 @@ def generate_html_report(record: Dict[str, Any]) -> str:
     <div class="count-card">
         <div class="count-val" style="color: #ef4444;">{m_cnt}</div>
         <div class="count-lbl">Unique Findings (M)</div>
-        <div style="font-size: 7.5pt; color: #94a3b8; margin-top: 2px;">({b_cnt} Breaches)</div>
+        <div style="font-size: 7.5pt; color: #94a3b8; margin-top: 2px;">{breach_subtext}</div>
     </div>
     <div class="count-card">
         <div class="count-val" style="color: #10b981;">{d_cnt}</div>
@@ -1282,26 +1312,36 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
         story.append(Paragraph(f"<b>Scope Boundary Disclaimer:</b> <font color='#92400e'>{clean_pdf_text(t_meta.get('disclaimer'))}</font>", ParagraphStyle('DiscStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=7, leading=9.5, textColor=colors.HexColor('#92400e'))))
     story.append(Spacer(1, 8))
 
-    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or issues_cnt))
-    b_cnt = record.get("breach_events_count", counts.get("total_breaches", counts.get("issues", issues_cnt)))
-    d_cnt = record.get("defended_events_count", counts.get("defended_trials", counts.get("no_issue", clean_cnt)))
-    u_cnt = record.get("unassessed_events_count", counts.get("unassessed", counts.get("not_completed", unassessed_cnt)))
+    b_cnt = record.get("breach_events_count")
+    if b_cnt is None:
+        b_cnt = counts.get("total_breaches", counts.get("issues", issues_cnt))
+    d_cnt = record.get("defended_events_count")
+    if d_cnt is None:
+        d_cnt = counts.get("defended_trials", counts.get("no_issue", clean_cnt))
+    u_cnt = record.get("unassessed_events_count")
+    if u_cnt is None:
+        u_cnt = counts.get("unassessed", counts.get("not_completed", unassessed_cnt))
 
-    if record.get("category_scores") and (d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass):
-        d_cnt = sum_cat_def
-        b_cnt = sum_cat_vuln
-        u_cnt = sum_cat_unass
-    clean_cnt = d_cnt
-    issues_cnt = b_cnt
+    if record.get("category_scores") and record.get("breach_events_count") is None:
+        if d_cnt != sum_cat_def or b_cnt != sum_cat_vuln or u_cnt != sum_cat_unass:
+            d_cnt = sum_cat_def
+            b_cnt = sum_cat_vuln
+            u_cnt = sum_cat_unass
+        clean_cnt = d_cnt
+        issues_cnt = b_cnt
 
-    if b_cnt == 0:
-        m_cnt = 0
-    elif m_cnt > b_cnt:
-        m_cnt = b_cnt
+    m_cnt = record.get("unique_findings_count", counts.get("unique_findings", len(record.get("candidate_clusters", [])) or len(findings)))
+    def_cnt = record.get("deficiency_events_count", counts.get("deficiencies", counts.get("sec_deficiencies", 0)))
 
+    if b_cnt > 0:
+        breach_subtext = f"({b_cnt} Breach{'es' if b_cnt != 1 else ''})"
+    elif def_cnt > 0:
+        breach_subtext = f"({def_cnt} Deficienc{'ies' if def_cnt != 1 else 'y'})"
+    else:
+        breach_subtext = "(0 Breaches)"
     metric_cells = [
         [
-            Paragraph(f"<font size=16 color='#dc2626'><b>{m_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unique Findings (M)</font><br/><font size=6 color='#94a3b8'>({b_cnt} Breaches)</font>", ParagraphStyle('M1', alignment=1)),
+            Paragraph(f"<font size=16 color='#dc2626'><b>{m_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unique Findings (M)</font><br/><font size=6 color='#94a3b8'>{breach_subtext}</font>", ParagraphStyle('M1', alignment=1)),
             Paragraph(f"<font size=16 color='#16a34a'><b>{d_cnt}</b></font><br/><font size=7.5 color='#64748b'>Defended Trials (D)</font>", ParagraphStyle('M2', alignment=1)),
             Paragraph(f"<font size=16 color='#ea580c'><b>{u_cnt}</b></font><br/><font size=7.5 color='#64748b'>Unassessed / Throttled (U)</font>", ParagraphStyle('M3', alignment=1)),
             Paragraph(f"<font size=16 color='#64748b'><b>{na_cnt}</b></font><br/><font size=7.5 color='#64748b'>Not Applicable</font>", ParagraphStyle('M4', alignment=1))
@@ -1332,7 +1372,7 @@ def _build_reportlab_pdf(record: Dict[str, Any], output_path: str) -> bool:
             Paragraph("<b>Security / Threat Domain</b>", body_bold),
             Paragraph("<b>Evaluated</b>", body_bold),
             Paragraph("<b>Defended</b>", body_bold),
-            Paragraph("<b>Breached</b>", body_bold),
+            Paragraph("<b>Defects / Breached</b>", body_bold),
             Paragraph("<b>Unassessed</b>", body_bold),
             Paragraph("<b>Defense Rate</b>", body_bold),
             Paragraph("<b>Status</b>", body_bold)

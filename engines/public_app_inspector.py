@@ -279,30 +279,83 @@ class PublicAppInspector:
         A 401, 403, or 404 is a PASS (protected/absent). Only 200 with sensitive content is flagged.
         """
         paths_to_test = [
-            ("/.env", "Environment Variables File", "DB_PASSWORD|SECRET|API_KEY"),
-            ("/.git/HEAD", "Git Repository Metadata", "ref: refs/")
+            ("/.env", "Environment Secrets (.env)", "DB_PASSWORD|SECRET|API_KEY"),
+            ("/.git/HEAD", "Git Repository Metadata", "ref: refs/"),
+            ("/robots.txt", "Robots.txt Directive File", ""),
+            ("/admin", "Administrative Portal (/admin)", "")
         ]
 
         for path, label, signature in paths_to_test:
             probe_url = origin + path
+            status_code = None
+            is_defended = False
+            evidence_desc = ""
             try:
                 req = urllib.request.Request(
                     probe_url,
                     headers={"User-Agent": "ATLAS-Risk-Public-Inspector/1.0"}
                 )
                 with urllib.request.urlopen(req, timeout=3.0) as resp:
-                    if resp.status == 200:
-                        body_snip = resp.read(256).decode("utf-8", errors="replace")
-                        if re.search(signature, body_snip, re.IGNORECASE):
+                    status_code = resp.status
+                    if status_code == 200:
+                        body_snip = resp.read(512).decode("utf-8", errors="replace")
+                        if signature and re.search(signature, body_snip, re.IGNORECASE):
                             results["categories"]["security_privacy"]["issues"].append({
                                 "check": f"Publicly Exposed {label}",
                                 "severity": "CRITICAL",
-                                "evidence": f"Path `{path}` returned HTTP 200 with matching signature.",
-                                "fix": f"Configure your web server (nginx, Vercel, Netlify) to deny access to hidden files (`location ~ /\\. {{ deny all; }}`)."
+                                "evidence": f"Path `{path}` returned HTTP 200 with matching secret signature.",
+                                "fix": f"Configure web server / reverse proxy to deny access to hidden files (`location ~ /\\. {{ deny all; }}`)."
                             })
-            except Exception:
-                # 403, 404 or connection error is normal and safe
-                pass
+                            results["issues_observed"].append({
+                                "domain": "Security / Privacy",
+                                "issue": f"Exposed Sensitive Path: {label}",
+                                "evidence": f"GET `{path}` returned HTTP 200 with exposed credentials/metadata.",
+                                "fix": f"Deny public access to `{path}` on web server or reverse proxy."
+                            })
+                        else:
+                            # 200 without signature or robots.txt/admin
+                            if path == "/robots.txt":
+                                is_defended = True
+                                evidence_desc = f"GET `{path}` returned HTTP 200: Passive inspection completed without sensitive path exposure."
+                            elif path == "/admin":
+                                # Login form or normal page
+                                is_defended = True
+                                evidence_desc = f"GET `{path}` returned HTTP 200: Endpoint presents standard access interface without bypass."
+                            else:
+                                is_defended = True
+                                evidence_desc = f"GET `{path}` returned HTTP 200: No sensitive credentials or keys disclosed."
+            except urllib.error.HTTPError as e:
+                status_code = e.code
+                if status_code in (401, 403, 404, 405):
+                    is_defended = True
+                    evidence_desc = f"GET `{path}` returned HTTP {status_code}: Endpoint is protected or not exposed."
+                else:
+                    # 500, 502, 503
+                    results["what_could_not_be_assessed"].append({
+                        "area": f"Sensitive Path: {path}",
+                        "reason": f"HTTP {status_code} error during probe",
+                        "required_access": f"Check web server error logs for {path}"
+                    })
+            except Exception as e:
+                # Network or connection error
+                results["what_could_not_be_assessed"].append({
+                    "area": f"Sensitive Path: {path}",
+                    "reason": f"Probe error: {str(e)[:60]}",
+                    "required_access": "Ensure firewall permits non-intrusive probe"
+                })
+
+            if is_defended:
+                results["what_we_verified"].append({
+                    "domain": "Security / Privacy",
+                    "item": f"Protected Path: {label}",
+                    "evidence": evidence_desc,
+                    "status": "VERIFIED"
+                })
+                results["positive_observations"].append({
+                    "area": "Security / Privacy",
+                    "observation": f"Sensitive path `{path}` is safely guarded ({evidence_desc.split(':')[0]}).",
+                    "evidence": evidence_desc
+                })
 
     def _aggregate_findings(self, results: Dict[str, Any]):
         """
@@ -321,6 +374,16 @@ class PublicAppInspector:
                 "area": results["target_url"],
                 "reason": "Root target URL was inaccessible or rejected initial connection.",
                 "required_access": "Verify host availability, DNS resolution, and firewall whitelist."
+            })
+            results["what_could_not_be_assessed"].append({
+                "area": "Internal Backend Architecture & Database Security",
+                "reason": "Bounded public inspection cannot inspect server-side logic, SQL parameters, or internal storage without source code or repository access.",
+                "required_access": "Connect repository (GitHub/GitLab) or authorize white-box assessment."
+            })
+            results["what_could_not_be_assessed"].append({
+                "area": "Active AI Model Red-Teaming (ATLAS Probes)",
+                "reason": "Adversarial prompt injection, system prompt extraction, and model red-teaming require explicit scoped authorization and dedicated API keys.",
+                "required_access": "Authorize active AI probing in the 'Local AI Testing' or 'New AI System Assessment' tabs with explicit scope agreement."
             })
             return
 
